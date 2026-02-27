@@ -1,4 +1,6 @@
+using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Constants;
 using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
@@ -11,21 +13,35 @@ internal static class AuthorizeNetErrorMessageBuilder
             return prefix;
 
         string codeText = GetResponseTextByCode(response.TransactionResponse.ResponseCode);
-        string errorCode = "";
-        string errorText = "";
+        var allErrors = new List<string>();
 
         if (response.TransactionResponse.Errors?.Any() is true)
         {
-            errorCode = response.TransactionResponse.Errors.First().ErrorCode ?? "";
-            errorText = response.TransactionResponse.Errors.First().ErrorText ?? "";
-        }
-        else if (response.Messages?.Message?.Any() is true)
-        {
-            errorCode = response.Messages.Message.First().Code ?? "";
-            errorText = response.Messages.Message.First().Text ?? "";
+            foreach (Error error in response.TransactionResponse.Errors)
+            {
+                string formattedError = FormatErrorMessage(error.ErrorCode, error.ErrorText);
+                if (!string.IsNullOrEmpty(formattedError))
+                    allErrors.Add(formattedError);
+            }
         }
 
-        return $"{prefix} {errorCode}/{codeText} - {errorText}".Trim();
+        if (!allErrors.Any() && response.Messages?.Message?.Any() is true)
+        {
+            foreach (Message message in response.Messages.Message)
+            {
+                string formattedMessage = FormatErrorMessage(message.Code, message.Text);
+                if (!string.IsNullOrEmpty(formattedMessage))
+                    allErrors.Add(formattedMessage);
+            }
+        }
+
+        if (allErrors.Any())
+        {
+            string combinedErrors = string.Join("; ", allErrors);
+            return $"{prefix} {codeText}: {combinedErrors}".Trim();
+        }
+
+        return $"{prefix} {codeText}".Trim();
     }
 
     public static string GetResponseTextByCode(string? responseCode)
@@ -38,10 +54,21 @@ internal static class AuthorizeNetErrorMessageBuilder
 
     public static string GetResponseTextByCode(int responseCode) => responseCode switch
     {
-        1 => "Approved",
-        2 => "Declined",
-        3 => "Error",
-        4 => "Held for Review",
+        ResponseCodes.Approved => "Approved",
+        ResponseCodes.Declined => "Declined",
+        ResponseCodes.Error => "Error",
+        ResponseCodes.HeldForReview => "Held for Review",
         _ => "Unknown"
     };
+
+    private static string FormatErrorMessage(string? code, string? text)
+    {
+        string errorCode = code ?? "";
+        string errorText = text ?? "";
+
+        if (string.IsNullOrEmpty(errorCode) && string.IsNullOrEmpty(errorText))
+            return "";
+
+        return $"{errorCode} - {errorText}".Trim(' ', '-');
+    }
 }

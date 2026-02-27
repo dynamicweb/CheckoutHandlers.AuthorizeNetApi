@@ -25,6 +25,9 @@ public sealed class NotificationPayload
 
     [DataMember(Name = "entityName")]
     public string Name { get; set; } = "";
+
+    [DataMember(Name = "eventType")]
+    public string EventType { get; set; } = "";
 }
 
 

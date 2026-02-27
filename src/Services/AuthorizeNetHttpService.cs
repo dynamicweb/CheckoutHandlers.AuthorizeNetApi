@@ -12,12 +12,14 @@ internal sealed class AuthorizeNetHttpService : IDisposable
     private readonly HttpClient _httpClient;
     private readonly string _url;
     private readonly bool _debugEnabled;
+    private readonly AuthorizeNetLogger? _logger;
     private bool _disposed = false;
 
-    public AuthorizeNetHttpService(bool isTestMode, bool debugEnabled)
+    public AuthorizeNetHttpService(bool isTestMode, bool debugEnabled, AuthorizeNetLogger? logger)
     {
         _url = AuthorizeNetEndpoints.GetApiEndpoint(isTestMode);
         _debugEnabled = debugEnabled;
+        _logger = logger;
 
         _httpClient = new HttpClient(new HttpClientHandler())
         {
@@ -40,7 +42,9 @@ internal sealed class AuthorizeNetHttpService : IDisposable
 
     public T? Post<T>(string jsonObject)
     {
-        var logger = new AuthorizeNetRequestLogger(_debugEnabled);
+        var logger = _logger is not null
+            ? new AuthorizeNetRequestLogger(_logger)
+            : new AuthorizeNetRequestLogger(_debugEnabled);
         try
         {
             var requestMessage = new HttpRequestMessage(HttpMethod.Post, _url)
@@ -51,7 +55,7 @@ internal sealed class AuthorizeNetHttpService : IDisposable
             requestMessage.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/json");
             logger.LogRequest(requestMessage, jsonObject);
 
-            using (var response = _httpClient.SendAsync(requestMessage).GetAwaiter().GetResult())
+            using (HttpResponseMessage response = _httpClient.SendAsync(requestMessage).GetAwaiter().GetResult())
             {
                 string responseText = response.Content
                     .ReadAsStringAsync()

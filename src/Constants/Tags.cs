@@ -2,8 +2,8 @@
 
 internal static class Tags
 {
-    public const string AuthorizeNetJavaScriptUrl = "AuthorizeNet.JavaScriptUrl";
-    public const string PublicClientKey = "AuthorizeNet.PublicClientKey";
-    public const string ApiLoginId = "AuthorizeNet.ApiLoginId";
-    public const string FormAction = "AuthorizeNet.FormAction";
+    internal const string AuthorizeNetJavaScriptUrl = "AuthorizeNet.JavaScriptUrl";
+    internal const string PublicClientKey = "AuthorizeNet.PublicClientKey";
+    internal const string ApiLoginId = "AuthorizeNet.ApiLoginId";
+    internal const string FormAction = "AuthorizeNet.FormAction";
 }
