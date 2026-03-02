@@ -1,6 +1,6 @@
 ﻿namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Constants;
 
-internal static class Messages
+internal static class PreparedMessages
 {
     internal const string CaptureSuccessMessage = "Capture successful";
     internal const string RefundSuccessMessage = "Authorize.Net has full refunded payment.";

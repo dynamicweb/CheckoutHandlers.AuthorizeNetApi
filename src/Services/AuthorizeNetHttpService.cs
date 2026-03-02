@@ -1,7 +1,10 @@
 using Dynamicweb.Core;
 using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Constants;
+using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Exceptions;
 using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
+using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 using System;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 
@@ -48,6 +51,9 @@ internal sealed class AuthorizeNetHttpService : IDisposable
         var logger = _logger is not null
             ? new AuthorizeNetRequestLogger(_logger)
             : new AuthorizeNetRequestLogger(_debugEnabled);
+
+        string responseText = string.Empty;
+
         try
         {
             var requestMessage = new HttpRequestMessage(HttpMethod.Post, _url)
@@ -60,27 +66,62 @@ internal sealed class AuthorizeNetHttpService : IDisposable
 
             using (HttpResponseMessage response = _httpClient.SendAsync(requestMessage).GetAwaiter().GetResult())
             {
-                string responseText = response.Content
+                responseText = response.Content
                     .ReadAsStringAsync()
                     .GetAwaiter()
                     .GetResult();
 
-                // Remove BOM if present
-                if (responseText.StartsWith("\uFEFF"))
-                    responseText = responseText.Substring(1);
-
                 logger.LogResponse(response, responseText);
+
+                // Check if response is an error before deserializing to T
+                ErrorResponse? errorResponse = TryParseError(responseText);
+                if (errorResponse is not null)
+                {
+                    string errorMessages = string.Join("; ",
+                        errorResponse.Messages?.Message?.Select(m => $"[{m.Code}] {m.Text}") ?? ["Unknown error"]);
+
+                    throw new AuthorizeNetApiException($"Authorize.Net API error: {errorMessages}", errorResponse);
+                }
+
                 return Converter.Deserialize<T>(responseText);
             }
         }
         catch (Exception ex)
         {
             logger.LogException(ex);
-            throw;
+
+            if (ex is AuthorizeNetApiException apiException)
+                throw apiException;
+
+            string message = ex.Message + $" Authorize.Net API response: {responseText}";
+            throw new Exception(message);
         }
         finally
         {
             logger.FinalizeLog();
         }
+    }
+
+    /// <summary>
+    /// Tries to parse the response as an error response
+    /// </summary>
+    /// <param name="responseText">The response text from API</param>
+    /// <returns>ErrorResponse if it's an error, null otherwise</returns>
+    private static ErrorResponse? TryParseError(string responseText)
+    {
+        try
+        {
+            var errorResponse = Converter.Deserialize<ErrorResponse>(responseText);
+
+            // Check if this looks like an error response
+            if (errorResponse?.Messages?.ResultCode?.Equals("Error", StringComparison.OrdinalIgnoreCase) is true)
+                return errorResponse;
+        }
+        catch
+        {
+            // Not an error response or couldn't parse - ignore
+        }
+
+        return null;
     }
 }

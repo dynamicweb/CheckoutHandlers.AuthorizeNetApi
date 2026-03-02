@@ -254,7 +254,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             });
         }
 
-        Message? message = response?.Messages.Message.FirstOrDefault();
+        Message? message = response?.Messages?.Message?.FirstOrDefault();
         return OnError(order, $"Failed to get hosted payment page ({message?.Code}): {message?.Text}");
     }
 
@@ -552,13 +552,13 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             if (string.IsNullOrEmpty(order.Id))
             {
-                LogError(order, Messages.OrderIdNotSetMessage);
+                LogError(order, PreparedMessages.OrderIdNotSetMessage);
                 return false;
             }
 
             if (string.IsNullOrEmpty(order.TransactionNumber))
             {
-                LogError(order, Messages.TransactionNumberNotSetMessage);
+                LogError(order, PreparedMessages.TransactionNumberNotSetMessage);
                 return false;
             }
 
@@ -583,7 +583,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         }
         catch (Exception ex)
         {
-            LogError(order, ex, $"{Messages.UnexpectedErrorMessage}: {ex.Message}");
+            LogError(order, ex, $"{PreparedMessages.UnexpectedErrorMessage}: {ex.Message}");
             return false;
         }
     }
@@ -631,20 +631,20 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             if (order is null)
             {
-                LogError(null, Messages.OrderNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, Messages.OrderNotSetMessage);
+                LogError(null, PreparedMessages.OrderNotSetMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, PreparedMessages.OrderNotSetMessage);
             }
 
             if (string.IsNullOrEmpty(order.Id))
             {
-                LogError(order, Messages.OrderIdNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, Messages.OrderIdNotSetMessage);
+                LogError(order, PreparedMessages.OrderIdNotSetMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, PreparedMessages.OrderIdNotSetMessage);
             }
 
             if (string.IsNullOrEmpty(order.TransactionNumber))
             {
-                LogError(order, Messages.TransactionNumberNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, Messages.TransactionNumberRequiredMessage);
+                LogError(order, PreparedMessages.TransactionNumberNotSetMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, PreparedMessages.TransactionNumberRequiredMessage);
             }
 
             string errorText = OrderHelper.GetOrderError(order);
@@ -672,10 +672,10 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             if (IsResponseSuccessful(response, order) && response?.TransactionResponse is not null)
             {
-                LogEvent(order, Messages.CaptureSuccessMessage, DebuggingInfoType.CaptureResult);
+                LogEvent(order, PreparedMessages.CaptureSuccessMessage, DebuggingInfoType.CaptureResult);
                 OrderHelper.UpdateTransactionNumber(order, response.TransactionResponse.TransId ?? "");
 
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Success, Messages.CaptureSuccessMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Success, PreparedMessages.CaptureSuccessMessage);
             }
 
             string infoText = response?.TransactionResponse?.Errors?.FirstOrDefault()?.ErrorText
@@ -687,7 +687,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         }
         catch (Exception ex)
         {
-            string errorMessage = $"{Messages.UnexpectedErrorMessage}: {ex.Message}";
+            string errorMessage = $"{PreparedMessages.UnexpectedErrorMessage}: {ex.Message}";
             LogError(order, ex, errorMessage);
 
             return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, errorMessage);
@@ -709,20 +709,20 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             if (order is null)
             {
-                LogError(null, Messages.OrderNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, Messages.OrderNotSetMessage);
+                LogError(null, PreparedMessages.OrderNotSetMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, PreparedMessages.OrderNotSetMessage);
             }
 
             if (string.IsNullOrEmpty(order.Id))
             {
-                LogError(order, Messages.OrderIdNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, Messages.OrderIdNotSetMessage);
+                LogError(order, PreparedMessages.OrderIdNotSetMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, PreparedMessages.OrderIdNotSetMessage);
             }
 
             if (string.IsNullOrEmpty(order.TransactionNumber))
             {
-                LogError(order, Messages.TransactionNumberNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, Messages.TransactionNumberRequiredMessage);
+                LogError(order, PreparedMessages.TransactionNumberNotSetMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, PreparedMessages.TransactionNumberRequiredMessage);
             }
 
             if (amount > order.Price.PricePIP)
@@ -782,7 +782,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         }
         catch (Exception ex)
         {
-            string errorMessage = $"{Messages.UnexpectedErrorMessage}: {ex.Message}";
+            string errorMessage = $"{PreparedMessages.UnexpectedErrorMessage}: {ex.Message}";
             LogError(order, ex, errorMessage);
 
             return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, errorMessage);
@@ -819,22 +819,22 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             if (order is null)
             {
-                LogError(null, Messages.OrderNotSetMessage);
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, Messages.OrderNotSetMessage, 0, order);
+                LogError(null, PreparedMessages.OrderNotSetMessage);
+                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, PreparedMessages.OrderNotSetMessage, 0, order);
                 return;
             }
 
             if (string.IsNullOrEmpty(order.Id))
             {
-                LogError(order, Messages.OrderIdNotSetMessage);
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, Messages.OrderIdNotSetMessage, 0, order);
+                LogError(order, PreparedMessages.OrderIdNotSetMessage);
+                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, PreparedMessages.OrderIdNotSetMessage, 0, order);
                 return;
             }
 
             if (string.IsNullOrEmpty(order.TransactionNumber))
             {
-                LogError(order, Messages.TransactionNumberNotSetMessage);
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, Messages.TransactionNumberRequiredMessage, 0, order);
+                LogError(order, PreparedMessages.TransactionNumberNotSetMessage);
+                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, PreparedMessages.TransactionNumberRequiredMessage, 0, order);
                 return;
             }
 
@@ -853,7 +853,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             if (IsResponseSuccessful(response, order))
             {
                 LogEvent(order, $"Refund successful for amount: {refundAmount:C}");
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.FullyReturned, Messages.RefundSuccessMessage, refundAmount, order);
+                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.FullyReturned, PreparedMessages.RefundSuccessMessage, refundAmount, order);
             }
             else
             {
@@ -867,7 +867,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         }
         catch (Exception ex)
         {
-            string errorMessage = $"{Messages.UnexpectedErrorMessage}: {ex.Message}";
+            string errorMessage = $"{PreparedMessages.UnexpectedErrorMessage}: {ex.Message}";
             LogError(order, ex, errorMessage);
             OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, errorMessage, 0, order);
         }
