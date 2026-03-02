@@ -30,7 +30,7 @@ internal sealed class AuthorizeNetService : IDisposable
     /// <param name="debugLogging">True to enable detailed HTTP request/response logging</param>
     /// <param name="logger">Optional logger instance for request logging and debugging</param>
     /// <param name="order">Optional order context for enhanced logging</param>
-    public AuthorizeNetService(string apiLoginId, string transactionKey, bool isTestMode, bool debugLogging, AuthorizeNetLogger? logger, Order? order = null)
+    public AuthorizeNetService(string apiLoginId, string transactionKey, bool isTestMode, bool debugLogging, AuthorizeNetLogger? logger, Order? order)
     {
         _apiLoginId = apiLoginId;
         _transactionKey = transactionKey;
@@ -47,10 +47,6 @@ internal sealed class AuthorizeNetService : IDisposable
         _logger.LogInfo("AuthorizeNet service initialized");
     }
 
-    /// <summary>
-    /// Disposes of the HTTP service resources and logs the service disposal.
-    /// This method should be called when the service is no longer needed to free up resources.
-    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;
@@ -66,14 +62,9 @@ internal sealed class AuthorizeNetService : IDisposable
     /// The hosted payment page handles PCI compliance and returns a transaction response.
     /// </summary>
     /// <param name="transactionRequest">The transaction request containing payment details, customer information, and order data</param>
-    /// <param name="settings">Hosted payment settings including form configuration, styling options, and redirect URLs</param>
-    /// <returns>
-    /// A GetHostedPaymentPageResponse containing the form token and payment page URL, 
-    /// or null if the request fails or authentication is invalid
-    /// </returns>
+    /// <param name="settings">Hosted payment settings including form configuration, styling options, and redirect URLs</param>   
     /// <remarks>
     /// This method corresponds to the getHostedPaymentPageRequest API call.
-    /// The returned form token must be used within 15 minutes of generation.
     /// For more information, see: https://developer.authorize.net/api/reference/index.html#accept-suite-get-an-accept-payment-page
     /// </remarks>
     public GetHostedPaymentPageResponse? GetHostedPaymentPage(
@@ -95,7 +86,7 @@ internal sealed class AuthorizeNetService : IDisposable
             GetHostedPaymentPageRequest = request
         };
 
-        var content = Converter.Serialize(wrapper);
+        string content = Converter.Serialize(wrapper);
         return _httpService.Post<GetHostedPaymentPageResponse>(content);
     }
 
@@ -139,7 +130,7 @@ internal sealed class AuthorizeNetService : IDisposable
             CreateTransactionRequest = request
         };
 
-        var content = Converter.Serialize(wrapper);
+        string content = Converter.Serialize(wrapper);
         return _httpService.Post<CreateTransactionResponse>(content);
     }
 

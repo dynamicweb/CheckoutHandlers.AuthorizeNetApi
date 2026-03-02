@@ -12,6 +12,7 @@ using Dynamicweb.Frontend;
 using Dynamicweb.Rendering;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
 using System.Threading;
@@ -27,27 +28,12 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     private RenderFormMode _formMode = RenderFormMode.Hosted;
     private TransactionType _transactionType = TransactionType.AuthCaptureTransaction;
 
-    private const string SavedCardNamePlaceholder = "NeedToSaveCardWithName:";
-    private const string PaymentFormTemplateFolder = "eCom7/CheckoutHandler/AuthorizeNet/Post";
-    private const string ErrorTemplateFolder = "eCom7/CheckoutHandler/AuthorizeNet/Error";
-    private const string CancelTemplateFolder = "eCom7/CheckoutHandler/AuthorizeNet/Cancel";
+    /// <summary>
+    /// Gets AuthorizeNetService instance
+    /// </summary>
+    private AuthorizeNetService GetAuthorizeNetService() =>
+        new AuthorizeNetService(ApiLoginId, TransactionKey, TestMode, DebugLogging, null, null);
 
-    // Message constants
-    private const string CaptureSuccessMessage = "Capture successful";
-    private const string RefundSuccessMessage = "Authorize.Net has full refunded payment.";
-    private const string CreditCardExpirationMask = "XXXX";
-
-    // Standard error messages
-    private const string OrderNotSetMessage = "Order not set";
-    private const string OrderIdNotSetMessage = "Order id not set";
-    private const string TransactionNumberNotSetMessage = "Transaction number not set";
-    private const string TransactionNumberRequiredMessage = "Transaction number is required";
-    private const string UnexpectedErrorMessage = "Unexpected error during operation";
-
-    private AuthorizeNetService? _authorizeNetService;
-
-    private AuthorizeNetService AuthorizeNetService =>
-        _authorizeNetService ??= new AuthorizeNetService(ApiLoginId, TransactionKey, TestMode, DebugLogging, null);
 
     /// <summary>
     /// Gets AuthorizeNetService instance with Order context for enhanced logging
@@ -99,7 +85,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
     private string _paymentFormTemplate = "";
 
-    [AddInLabel("Payment form template"), AddInParameter("PaymentFormTemplate"), AddInParameterGroup("Template settings"), AddInParameterEditor(typeof(TemplateParameterEditor), $"folder=Templates/{PaymentFormTemplateFolder}")]
+    [AddInLabel("Payment form template"), AddInParameter("PaymentFormTemplate"), AddInParameterGroup("Template settings"), AddInParameterEditor(typeof(TemplateParameterEditor), $"folder=Templates/{TemplateFolders.PaymentFormTemplateFolder}")]
     public string PaymentFormTemplate
     {
         get => TemplateHelper.GetTemplateName(_paymentFormTemplate);
@@ -108,7 +94,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
     private string _cancelTemplate = "";
 
-    [AddInLabel("Cancel template"), AddInParameter("CancelTemplate"), AddInParameterGroup("Template settings"), AddInParameterEditor(typeof(TemplateParameterEditor), $"folder=Templates/{CancelTemplateFolder}")]
+    [AddInLabel("Cancel template"), AddInParameter("CancelTemplate"), AddInParameterGroup("Template settings"), AddInParameterEditor(typeof(TemplateParameterEditor), $"folder=Templates/{TemplateFolders.CancelTemplateFolder}")]
     public string CancelTemplate
     {
         get => TemplateHelper.GetTemplateName(_cancelTemplate);
@@ -117,7 +103,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
     private string _errorTemplate = "";
 
-    [AddInLabel("Error template"), AddInParameter("ErrorTemplate"), AddInParameterGroup("Template settings"), AddInParameterEditor(typeof(TemplateParameterEditor), $"folder=Templates/{ErrorTemplateFolder}")]
+    [AddInLabel("Error template"), AddInParameter("ErrorTemplate"), AddInParameterGroup("Template settings"), AddInParameterEditor(typeof(TemplateParameterEditor), $"folder=Templates/{TemplateFolders.ErrorTemplateFolder}")]
     public string ErrorTemplate
     {
         get => TemplateHelper.GetTemplateName(_errorTemplate);
@@ -147,7 +133,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     {
         try
         {
-            var service = GetAuthorizeNetService(order);
+            AuthorizeNetService service = GetAuthorizeNetService(order);
 
             LogEvent(order, "Checkout started");
 
@@ -158,7 +144,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 ? AuthorizeNetEndpoints.GetAcceptJsUrl(TestMode)
                 : AuthorizeNetEndpoints.GetAcceptUiUrl(TestMode);
 
-            var template = new Template(TemplateHelper.GetTemplatePath(PaymentFormTemplate, PaymentFormTemplateFolder));
+            var template = new Template(TemplateHelper.GetTemplatePath(PaymentFormTemplate, TemplateFolders.PaymentFormTemplateFolder));
             template.SetTag(Tags.ApiLoginId, ApiLoginId);
             template.SetTag(Tags.AuthorizeNetJavaScriptUrl, javaScriptUrl);
             template.SetTag(Tags.FormAction, $"{GetBaseUrl(order)}&action=FormPost");
@@ -256,7 +242,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         };
 
         TransactionRequestType transactionRequest = CreateTransactionRequest(order, orderAmount, null, null, true);
-        var response = service.GetHostedPaymentPage(transactionRequest, settings);
+        GetHostedPaymentPageResponse? response = service.GetHostedPaymentPage(transactionRequest, settings);
 
         if (IsResponseSuccessful(response, order))
         {
@@ -264,7 +250,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             return GetSubmitFormResult(formUrl, new Dictionary<string, string>
             {
-                ["token"] = response!.Token
+                ["token"] = response.Token
             });
         }
 
@@ -317,7 +303,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 SaveCard(order, cardName, response.TransactionResponse.NetworkTransId, transactionAmount);
         }
         else if (needSaveCard)
-            order.GatewayPaymentStatus = $"{SavedCardNamePlaceholder}{cardName}";
+            order.GatewayPaymentStatus = $"{SecuritySettings.SavedCardNamePlaceholder}{cardName}";
 
         if (_transactionType is TransactionType.AuthCaptureTransaction)
         {
@@ -342,7 +328,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         order.TransactionStatus = "Cancelled";
         CheckoutDone(order);
 
-        var cancelTemplate = new Template(TemplateHelper.GetTemplatePath(CancelTemplate, CancelTemplateFolder));
+        var cancelTemplate = new Template(TemplateHelper.GetTemplatePath(CancelTemplate, TemplateFolders.CancelTemplateFolder));
         cancelTemplate.SetTag("CheckoutHandler:CancelMessage", "Payment has been cancelled before processing was completed");
 
         return new ContentOutputResult
@@ -470,16 +456,17 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         UpdateTransactionData(order, payload);
         if (string.IsNullOrEmpty(order.TransactionCardNumber))
         {
-            TransactionDetailsType? transactionDetails = AuthorizeNetService.GetTransactionDetails(payload.Id);
+            AuthorizeNetService service = GetAuthorizeNetService(order);
+            TransactionDetailsType? transactionDetails = service.GetTransactionDetails(payload.Id);
             if (transactionDetails?.Payment.CreditCard is not null)
             {
                 order.TransactionCardType = transactionDetails.Payment.CreditCard.CardType.ToString();
                 order.TransactionCardNumber = transactionDetails.Payment.CreditCard.CardNumber;
             }
 
-            if (order.GatewayPaymentStatus?.StartsWith(SavedCardNamePlaceholder) is true)
+            if (order.GatewayPaymentStatus?.StartsWith(SecuritySettings.SavedCardNamePlaceholder) is true)
             {
-                var cardName = order.GatewayPaymentStatus.Substring(SavedCardNamePlaceholder.Length);
+                var cardName = order.GatewayPaymentStatus.Substring(SecuritySettings.SavedCardNamePlaceholder.Length);
                 order.GatewayPaymentStatus = string.Empty;
                 SaveCard(order, cardName, transactionDetails?.NetworkTransId, payload.Amount);
             }
@@ -550,30 +537,28 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
     /// <summary>
     /// Cancels an order (performs Void transaction in Authorize.Net)
-    /// Void is only possible on the day of the transaction before batch closing time (usually 11:59 PM EST)
+    /// Void is only possible on the day of the transaction before batch closing time
     /// If void is not possible, the system will automatically perform a refund
     /// </summary>
     /// <param name="order">Order to cancel</param>
-    /// <returns>True if cancellation was successful, otherwise False</returns>
     public bool CancelOrder(Order order)
     {
         ArgumentNullException.ThrowIfNull(order);
 
         try
         {
-            var service = GetAuthorizeNetService(order);
+            AuthorizeNetService service = GetAuthorizeNetService(order);
             LogEvent(order, "Cancel order attempt for Order {0}, Amount {1}", order.Id, order.TransactionAmount);
 
-            // Structured validation following Stripe pattern
             if (string.IsNullOrEmpty(order.Id))
             {
-                LogError(order, OrderIdNotSetMessage);
+                LogError(order, Messages.OrderIdNotSetMessage);
                 return false;
             }
 
             if (string.IsNullOrEmpty(order.TransactionNumber))
             {
-                LogError(order, TransactionNumberNotSetMessage);
+                LogError(order, Messages.TransactionNumberNotSetMessage);
                 return false;
             }
 
@@ -584,7 +569,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 return false;
             }
 
-            // First try void, then refund (like in Stripe)
             if (TryVoidTransaction(order, service))
             {
                 LogEvent(order, "Void transaction successful");
@@ -599,7 +583,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         }
         catch (Exception ex)
         {
-            LogError(order, ex, $"{UnexpectedErrorMessage}: {ex.Message}");
+            LogError(order, ex, $"{Messages.UnexpectedErrorMessage}: {ex.Message}");
             return false;
         }
     }
@@ -619,7 +603,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
         CreateTransactionResponse? response = service.CreateTransaction(transactionRequest);
 
-        if (IsResponseSuccessful(response))
+        if (IsResponseSuccessful(response, order))
             return true;
 
         string errorMessage = response?.TransactionResponse?.Errors?.FirstOrDefault()?.ErrorText
@@ -632,7 +616,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
 
     /// <summary>
-    /// Captures the authorized amount (performs Prior Auth Capture transaction)
+    /// Captures the authorized amount
     /// Capture must occur within 30 days of authorization
     /// </summary>
     /// <param name="order">Order to capture funds for</param>
@@ -647,20 +631,20 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             if (order is null)
             {
-                LogError(null, OrderNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, OrderNotSetMessage);
+                LogError(null, Messages.OrderNotSetMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, Messages.OrderNotSetMessage);
             }
 
             if (string.IsNullOrEmpty(order.Id))
             {
-                LogError(order, OrderIdNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, OrderIdNotSetMessage);
+                LogError(order, Messages.OrderIdNotSetMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, Messages.OrderIdNotSetMessage);
             }
 
             if (string.IsNullOrEmpty(order.TransactionNumber))
             {
-                LogError(order, TransactionNumberNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, TransactionNumberRequiredMessage);
+                LogError(order, Messages.TransactionNumberNotSetMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, Messages.TransactionNumberRequiredMessage);
             }
 
             string errorText = OrderHelper.GetOrderError(order);
@@ -688,10 +672,10 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             if (IsResponseSuccessful(response, order) && response?.TransactionResponse is not null)
             {
-                LogEvent(order, CaptureSuccessMessage, DebuggingInfoType.CaptureResult);
+                LogEvent(order, Messages.CaptureSuccessMessage, DebuggingInfoType.CaptureResult);
                 OrderHelper.UpdateTransactionNumber(order, response.TransactionResponse.TransId ?? "");
 
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Success, CaptureSuccessMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Success, Messages.CaptureSuccessMessage);
             }
 
             string infoText = response?.TransactionResponse?.Errors?.FirstOrDefault()?.ErrorText
@@ -703,7 +687,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         }
         catch (Exception ex)
         {
-            string errorMessage = $"{UnexpectedErrorMessage}: {ex.Message}";
+            string errorMessage = $"{Messages.UnexpectedErrorMessage}: {ex.Message}";
             LogError(order, ex, errorMessage);
 
             return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, errorMessage);
@@ -711,12 +695,11 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     }
 
     /// <summary>
-    /// Partial capture of authorized amount with support for multiple operations
+    /// Partial capture of authorized amount
     /// </summary>
     /// <param name="order">Order to capture funds for</param>
     /// <param name="amount">Amount to capture</param>
     /// <param name="final">True if this is the final capture (no more captures will follow)</param>
-    /// <returns>Information about the capture operation result</returns>
     public OrderCaptureInfo Capture(Order order, long amount, bool final)
     {
         try
@@ -726,20 +709,20 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             if (order is null)
             {
-                LogError(null, OrderNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, OrderNotSetMessage);
+                LogError(null, Messages.OrderNotSetMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, Messages.OrderNotSetMessage);
             }
 
             if (string.IsNullOrEmpty(order.Id))
             {
-                LogError(order, OrderIdNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, OrderIdNotSetMessage);
+                LogError(order, Messages.OrderIdNotSetMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, Messages.OrderIdNotSetMessage);
             }
 
             if (string.IsNullOrEmpty(order.TransactionNumber))
             {
-                LogError(order, TransactionNumberNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, TransactionNumberRequiredMessage);
+                LogError(order, Messages.TransactionNumberNotSetMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, Messages.TransactionNumberRequiredMessage);
             }
 
             if (amount > order.Price.PricePIP)
@@ -756,11 +739,11 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, errorText);
             }
 
-            var validation = ValidatePartialCapture(order, amount, final);
-            if (!validation.IsValid)
+            (bool isValid, string? errorMessage) = ValidatePartialCapture(order, amount, final);
+            if (!isValid)
             {
-                LogError(order, validation.ErrorMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, validation.ErrorMessage);
+                LogError(order, errorMessage);
+                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, errorMessage);
             }
 
             double captureAmount = amount / 100.0d;
@@ -799,7 +782,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         }
         catch (Exception ex)
         {
-            string errorMessage = $"{UnexpectedErrorMessage}: {ex.Message}";
+            string errorMessage = $"{Messages.UnexpectedErrorMessage}: {ex.Message}";
             LogError(order, ex, errorMessage);
 
             return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, errorMessage);
@@ -809,7 +792,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <summary>
     /// Basic validation for partial capture
     /// </summary>
-    private (bool IsValid, string? ErrorMessage) ValidatePartialCapture(Order order, long amount, bool final)
+    private (bool isValid, string? errorMessage) ValidatePartialCapture(Order order, long amount, bool final)
     {
         if (amount <= 0)
             return (false, "Capture amount must be greater than zero");
@@ -826,7 +809,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
     /// <summary>
     /// Performs a full refund for the order (Refund transaction)
-    /// Refund is possible within 180 days of the original transaction
     /// </summary>
     /// <param name="order">Order to refund</param>
     public void FullReturn(Order order)
@@ -837,22 +819,22 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             if (order is null)
             {
-                LogError(null, OrderNotSetMessage);
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, OrderNotSetMessage, 0, order);
+                LogError(null, Messages.OrderNotSetMessage);
+                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, Messages.OrderNotSetMessage, 0, order);
                 return;
             }
 
             if (string.IsNullOrEmpty(order.Id))
             {
-                LogError(order, OrderIdNotSetMessage);
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, OrderIdNotSetMessage, 0, order);
+                LogError(order, Messages.OrderIdNotSetMessage);
+                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, Messages.OrderIdNotSetMessage, 0, order);
                 return;
             }
 
             if (string.IsNullOrEmpty(order.TransactionNumber))
             {
-                LogError(order, TransactionNumberNotSetMessage);
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, TransactionNumberRequiredMessage, 0, order);
+                LogError(order, Messages.TransactionNumberNotSetMessage);
+                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, Messages.TransactionNumberRequiredMessage, 0, order);
                 return;
             }
 
@@ -868,10 +850,10 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             TransactionRequestType transactionRequest = CreateRefundRequest(order, refundAmount);
             CreateTransactionResponse? response = service.CreateTransaction(transactionRequest);
 
-            if (IsResponseSuccessful(response))
+            if (IsResponseSuccessful(response, order))
             {
                 LogEvent(order, $"Refund successful for amount: {refundAmount:C}");
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.FullyReturned, RefundSuccessMessage, refundAmount, order);
+                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.FullyReturned, Messages.RefundSuccessMessage, refundAmount, order);
             }
             else
             {
@@ -885,7 +867,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         }
         catch (Exception ex)
         {
-            string errorMessage = $"{UnexpectedErrorMessage}: {ex.Message}";
+            string errorMessage = $"{Messages.UnexpectedErrorMessage}: {ex.Message}";
             LogError(order, ex, errorMessage);
             OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, errorMessage, 0, order);
         }
@@ -916,7 +898,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 CreditCard = new CreditCardType
                 {
                     CardNumber = order.TransactionCardNumber,
-                    ExpirationDate = CreditCardExpirationMask
+                    ExpirationDate = SecuritySettings.CreditCardExpirationMask
                 }
             };
         }
@@ -932,12 +914,12 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <param name="savedCardId">ID of the saved card to delete</param>
     public void DeleteSavedCard(int savedCardId)
     {
-        LogEvent($"Attempting to delete saved card ID: {savedCardId}");
+        Log($"Attempting to delete saved card ID: {savedCardId}");
 
         PaymentCardToken? savedCard = Ecommerce.Services.PaymentCard.GetById(savedCardId);
         if (savedCard is null)
         {
-            LogError($"Saved card not found with ID: {savedCardId}");
+            Log($"Saved card not found with ID: {savedCardId}");
             return;
         }
 
@@ -946,39 +928,41 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
         if (userId <= 0)
         {
-            LogError($"Invalid user ID for saved card: {userId}");
+            Log($"Invalid user ID for saved card: {userId}");
             return;
         }
 
         if (string.IsNullOrEmpty(cardToken))
         {
-            LogError($"Invalid card token for saved card ID: {savedCardId}");
-            return;
-        }
-
-        CustomerProfileMaskedType? profile = GetCustomerProfile(userId, false);
-        if (string.IsNullOrEmpty(profile?.CustomerProfileId))
-        {
-            LogError($"Customer profile not found for user ID: {userId}");
+            Log($"Invalid card token for saved card ID: {savedCardId}");
             return;
         }
 
         try
         {
-            var response = AuthorizeNetService.DeleteCustomerPaymentProfile(profile.CustomerProfileId, cardToken);
+            AuthorizeNetService service = GetAuthorizeNetService();
+
+            CustomerProfileMaskedType? profile = GetCustomerProfile(service, userId, false);
+            if (string.IsNullOrEmpty(profile?.CustomerProfileId))
+            {
+                Log($"Customer profile not found for user ID: {userId}");
+                return;
+            }
+
+            var response = service.DeleteCustomerPaymentProfile(profile.CustomerProfileId, cardToken);
             if (response is not null && Enum.TryParse(response.Messages?.ResultCode, true, out MessageTypeEnum resultCode) &&
                 resultCode == MessageTypeEnum.Ok)
             {
-                LogEvent($"Successfully deleted payment profile {cardToken} for customer {profile.CustomerProfileId}");
+                Log($"Successfully deleted payment profile {cardToken} for customer {profile.CustomerProfileId}");
             }
             else
             {
-                LogError($"Failed to delete payment profile. Response: {response?.Messages?.Message?.FirstOrDefault()?.Text}");
+                Log($"Failed to delete payment profile. Response: {response?.Messages?.Message?.FirstOrDefault()?.Text}");
             }
         }
         catch (Exception ex)
         {
-            LogError($"Exception occurred while deleting saved card: {ex.Message}");
+            Log($"Exception occurred while deleting saved card: {ex.Message}");
         }
     }
 
@@ -986,7 +970,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// Uses a saved card to pay for an order
     /// </summary>
     /// <param name="order">Order to pay for</param>
-    /// <returns>Empty string on success, otherwise HTML content with error</returns>
     public string UseSavedCard(Order order)
     {
         try
@@ -1018,9 +1001,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         }
     }
 
-    /// <summary>
-    /// Internal logic for using saved card
-    /// </summary>
     private OutputResult UseSavedCardInternal(Order order)
     {
         LogEvent(order, $"Attempting to use saved card ID: {order.SavedCardId}");
@@ -1039,7 +1019,8 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         if (string.IsNullOrEmpty(savedCard.Token))
             throw new ArgumentException($"Invalid token for saved card ID: {order.SavedCardId}");
 
-        CustomerProfileMaskedType? profile = GetCustomerProfile(order.CustomerAccessUserId, false);
+        AuthorizeNetService service = GetAuthorizeNetService(order);
+        CustomerProfileMaskedType? profile = GetCustomerProfile(service, order.CustomerAccessUserId, false);
         if (string.IsNullOrEmpty(profile?.CustomerProfileId))
             throw new InvalidOperationException($"Customer profile not found for user: {order.CustomerAccessUserId}");
 
@@ -1060,15 +1041,14 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
         OutputResult result = CreatePaymentTransaction(order, profileToCharge, null);
 
-        if (result is ContentOutputResult)
+        if (result is RedirectOutputResult)
         {
-            // If CreatePaymentTransaction returned ContentOutputResult, this means success
+            // If CreatePaymentTransaction returned RedirectOutputResult, this means success
             LogEvent(order, "Successfully processed payment with saved card");
-            CheckoutDone(order);
-            return PassToCart(order);
+            return result;
         }
 
-        // If we got a different result type, return it as is
+        // If we got ContentOutputResult, this means error
         return result;
     }
 
@@ -1084,15 +1064,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <summary>
     /// Helper method for logging without Order object
     /// </summary>
-    private void LogEvent(string message)
-    {
-        Ecommerce.Services.OrderDebuggingInfos.Save(null, message, "Authorize.Net checkout handler", DebuggingInfoType.Undefined);
-    }
-
-    /// <summary>
-    /// Helper method for error logging without Order object
-    /// </summary>
-    private void LogError(string message)
+    private void Log(string message)
     {
         Ecommerce.Services.OrderDebuggingInfos.Save(null, message, "Authorize.Net checkout handler", DebuggingInfoType.Undefined);
     }
@@ -1109,7 +1081,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// Checks if saved cards are supported for the given order
     /// </summary>
     /// <param name="order">Order to check</param>
-    /// <returns>True if saved cards are supported</returns>
     public bool SavedCardSupported(Order order) => AllowSaveCards;
 
     private bool NeedSaveCard(Order order, out string cardName)
@@ -1132,8 +1103,8 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         if (!AllowSaveCards || order.CustomerAccessUserId <= 0)
             return;
 
-        var service = GetAuthorizeNetService(order);
-        CustomerProfileMaskedType? profile = GetCustomerProfile(order.CustomerAccessUserId, true);
+        AuthorizeNetService service = GetAuthorizeNetService(order);
+        CustomerProfileMaskedType? profile = GetCustomerProfile(service, order.CustomerAccessUserId, true);
         if (profile is null)
             return;
 
@@ -1165,7 +1136,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         LogEvent(order, "Saved card with COF data: {0}", existingCard.Name);
     }
 
-    private CustomerProfileMaskedType? GetCustomerProfile(int userId, bool tryCreate) => AuthorizeNetService.GetCustomerProfile(userId, tryCreate);
+    private CustomerProfileMaskedType? GetCustomerProfile(AuthorizeNetService service, int userId, bool tryCreate) => service.GetCustomerProfile(userId, tryCreate);
 
     public IEnumerable<ParameterOption> GetParameterOptions(string parameterName)
     {
@@ -1191,13 +1162,9 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         LogEvent(order, "Printing error template");
 
         if (exception is not null)
-        {
             LogError(order, exception, message);
-        }
         else
-        {
             LogError(order, message);
-        }
 
         order.TransactionAmount = 0;
         order.TransactionStatus = "Failed";
@@ -1211,23 +1178,26 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         if (string.IsNullOrWhiteSpace(ErrorTemplate))
             return PassToCart(order);
 
-        var errorTemplate = new Template(TemplateHelper.GetTemplatePath(ErrorTemplate, ErrorTemplateFolder));
+        var errorTemplate = new Template(TemplateHelper.GetTemplatePath(ErrorTemplate, TemplateFolders.ErrorTemplateFolder));
         errorTemplate.SetTag("CheckoutHandler:ErrorMessage", message);
 
-        return new ContentOutputResult { Content = Render(order, errorTemplate) };
+        return new ContentOutputResult
+        {
+            Content = Render(order, errorTemplate)
+        };
     }
 
     private void Save(Order order) => Ecommerce.Services.Orders.Save(order);
 
     private void SetFirstTransactionFlags(TransactionRequestType request, bool isCardOnFile)
     {
-        if (isCardOnFile)
-        {
-            if (request.ProcessingOptions is null)
-                request.ProcessingOptions = new ProcessingOptionsType();
+        if (!isCardOnFile)
+            return;
 
-            request.ProcessingOptions.IsStoredCredentials = true;
-        }
+        if (request.ProcessingOptions is null)
+            request.ProcessingOptions = new ProcessingOptionsType();
+
+        request.ProcessingOptions.IsStoredCredentials = true;
     }
 
     private (string? cardToken, string? networkTransId, double? originalAmount) ExtractCofData(string? token)
@@ -1245,7 +1215,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <summary>
     /// Checks if response from Authorize.Net API is successful
     /// </summary>
-    private bool IsResponseSuccessful(CreateTransactionResponse? response, Order? order = null)
+    private bool IsResponseSuccessful(CreateTransactionResponse? response, Order? order)
     {
         if (response?.TransactionResponse is null)
         {
@@ -1253,11 +1223,11 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             return false;
         }
 
-        var isSuccess = int.Parse(response.TransactionResponse.ResponseCode) == ResponseCodes.Approved;
+        bool isSuccess = Converter.ToInt32(response.TransactionResponse.ResponseCode) == ResponseCodes.Approved;
 
         if (!isSuccess)
         {
-            var errorMessage = response.TransactionResponse.Errors?.FirstOrDefault()?.ErrorText
+            string errorMessage = response.TransactionResponse.Errors?.FirstOrDefault()?.ErrorText
                 ?? response.Messages?.Message?.FirstOrDefault()?.Text
                 ?? "Transaction failed";
 
@@ -1271,7 +1241,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <summary>
     /// Checks if response from Authorize.Net API is successful (for GetHostedPaymentPage)
     /// </summary>
-    private bool IsResponseSuccessful(GetHostedPaymentPageResponse? response, Order? order = null)
+    private bool IsResponseSuccessful([NotNullWhen(true)] GetHostedPaymentPageResponse? response, Order? order)
     {
         if (response is null)
         {
@@ -1280,7 +1250,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         }
 
         var isSuccess = Enum.TryParse(response.Messages?.ResultCode, true, out MessageTypeEnum resultCode)
-                       && resultCode == MessageTypeEnum.Ok;
+                       && resultCode is MessageTypeEnum.Ok;
 
         if (!isSuccess)
         {

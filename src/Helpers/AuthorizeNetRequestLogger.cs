@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
 
 /// <summary>
-/// Handles logging for Authorize.Net requests and responses with PCI DSS compliance.
+/// Handles logging for Authorize.Net requests and responses.
 /// Automatically masks sensitive data including credit card numbers, CVV codes, 
 /// API keys, and other personal information in logged content.
 /// </summary>

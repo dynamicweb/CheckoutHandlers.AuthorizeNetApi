@@ -7,6 +7,9 @@ using System.Net.Http.Headers;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Services;
 
+/// <summary>
+/// Service to send request/response to Authorize.Net API endpoints.
+/// </summary>
 internal sealed class AuthorizeNetHttpService : IDisposable
 {
     private readonly HttpClient _httpClient;

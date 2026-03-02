@@ -1,8 +1,5 @@
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Constants;
 
-/// <summary>
-/// Security settings
-/// </summary>
 internal static class SecuritySettings
 {
     /// <summary>
@@ -11,9 +8,19 @@ internal static class SecuritySettings
     internal const string CardNumberMask = "XXXX-XXXX-XXXX-";
 
     /// <summary>
+    /// Represents the mask value used to obscure credit card expiration dates.
+    /// </summary>
+    internal const string CreditCardExpirationMask = "XXXX";
+
+    /// <summary>
     /// Mask for hiding API keys in logs
     /// </summary>
     internal const string ApiKeyMask = "***HIDDEN***";
+
+    /// <summary>
+    /// Placeholder for saved card name
+    /// </summary>
+    internal const string SavedCardNamePlaceholder = "NeedToSaveCardWithName:";
 
     /// <summary>
     /// Minimum length for secure passwords/keys
