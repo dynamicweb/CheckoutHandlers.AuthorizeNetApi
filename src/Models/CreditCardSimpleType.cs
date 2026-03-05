@@ -2,7 +2,7 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "creditCardSimpleType")]
+[DataContract]
 internal sealed class CreditCardSimpleType
 {
     [DataMember(Name = "cardNumber")]
@@ -11,5 +11,3 @@ internal sealed class CreditCardSimpleType
     [DataMember(Name = "expirationDate")]
     public string ExpirationDate { get; set; } = "";
 }
-
-

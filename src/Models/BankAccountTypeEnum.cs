@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<BankAccountTypeEnum>))]
-[DataContract(Name = "bankAccountTypeEnum")]
+[DataContract]
 internal enum BankAccountTypeEnum
 {
     [EnumMember(Value = "checking")]

@@ -2,14 +2,12 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "customerProfilePaymentType")]
+[DataContract]
 internal sealed class CustomerProfilePaymentType
 {
-    [DataMember(Name = "customerProfileId")]
+    [DataMember(Name = "customerProfileId", EmitDefaultValue = false)]
     public string CustomerProfileId { get; set; } = "";
 
-    [DataMember(Name = "paymentProfile")]
+    [DataMember(Name = "paymentProfile", EmitDefaultValue = false)]
     public PaymentProfile PaymentProfile { get; set; } = new();
 }
-
-

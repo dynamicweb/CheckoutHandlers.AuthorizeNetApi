@@ -1,15 +1,22 @@
 using System.Runtime.Serialization;
+using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "transactionRequestType")]
+[DataContract]
 internal sealed class TransactionRequestType
 {
+    private double _amount;
+
     [DataMember(Name = "transactionType")]
     public TransactionTypeEnum TransactionType { get; set; }
 
     [DataMember(Name = "amount", EmitDefaultValue = false)]
-    public double Amount { get; set; }
+    public double Amount 
+    { 
+        get => _amount;
+        set => _amount = AmountHelper.AdjustAmount(value);
+    }
 
     [DataMember(Name = "currencyCode", EmitDefaultValue = false)]
     public string CurrencyCode { get; set; } = "";
@@ -47,5 +54,3 @@ internal sealed class TransactionRequestType
     [DataMember(Name = "subsequentAuthInformation", EmitDefaultValue = false)]
     public SubsequentAuthInformationType? SubsequentAuthInformation { get; set; }
 }
-
-

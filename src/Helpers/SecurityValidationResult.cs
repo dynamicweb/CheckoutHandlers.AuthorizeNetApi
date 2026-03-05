@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
+namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
 
 /// <summary>
 /// Result of security configuration validation

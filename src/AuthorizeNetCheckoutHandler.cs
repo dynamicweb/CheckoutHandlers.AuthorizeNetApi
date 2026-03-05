@@ -23,23 +23,9 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi;
 /// AuthorizeNet API Checkout Handler
 /// </summary>
 [AddInName("Authorize.Net API"), AddInDescription("AuthorizeNet API Checkout Handler"), AddInUseParameterGrouping(true)]
-public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullReturn, IRemoteCapture, IRemotePartialCapture, ISavedCard, IParameterOptions
+public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullReturn, IPartialReturn, IRemoteCapture, IRemotePartialCapture, ISavedCard, IParameterOptions, ICheckoutHandlerCallback
 {
-    private RenderFormMode _formMode = RenderFormMode.Hosted;
     private TransactionType _transactionType = TransactionType.AuthCaptureTransaction;
-
-    /// <summary>
-    /// Gets AuthorizeNetService instance
-    /// </summary>
-    private AuthorizeNetService GetAuthorizeNetService() =>
-        new AuthorizeNetService(ApiLoginId, TransactionKey, TestMode, DebugLogging, null, null);
-
-
-    /// <summary>
-    /// Gets AuthorizeNetService instance with Order context for enhanced logging
-    /// </summary>
-    private AuthorizeNetService GetAuthorizeNetService(Order order) =>
-        new AuthorizeNetService(ApiLoginId, TransactionKey, TestMode, DebugLogging, null, order);
 
     #region AddIn parameters
 
@@ -72,26 +58,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     [AddInLabel("Test mode"), AddInParameter("TestMode"), AddInParameterEditor(typeof(YesNoParameterEditor), "")]
     public bool TestMode { get; set; }
 
-    [AddInLabel("Payment form render mode"), AddInParameter("PaymentFormMode"), AddInParameterGroup("Template settings"), AddInParameterEditor(typeof(RadioParameterEditor), "SortBy=Key")]
-    public string PaymentFormMode
-    {
-        get => _formMode.ToString();
-        set
-        {
-            if (Enum.TryParse(value, out RenderFormMode parsed))
-                _formMode = parsed;
-        }
-    }
-
-    private string _paymentFormTemplate = "";
-
-    [AddInLabel("Payment form template"), AddInParameter("PaymentFormTemplate"), AddInParameterGroup("Template settings"), AddInParameterEditor(typeof(TemplateParameterEditor), $"folder=Templates/{TemplateFolders.PaymentFormTemplateFolder}")]
-    public string PaymentFormTemplate
-    {
-        get => TemplateHelper.GetTemplateName(_paymentFormTemplate);
-        set => _paymentFormTemplate = value;
-    }
-
     private string _cancelTemplate = "";
 
     [AddInLabel("Cancel template"), AddInParameter("CancelTemplate"), AddInParameterGroup("Template settings"), AddInParameterEditor(typeof(TemplateParameterEditor), $"folder=Templates/{TemplateFolders.CancelTemplateFolder}")]
@@ -112,18 +78,21 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
     private bool _debugLogging = false;
 
-    [AddInLabel("Enable debug logging"), AddInParameter("DebugLogging"), AddInParameterGroup("Advanced settings"), AddInParameterEditor(typeof(YesNoParameterEditor), "")]
+    [AddInLabel("Enable debug logging"), AddInParameter("DebugLogging"), AddInParameterEditor(typeof(YesNoParameterEditor), "")]
     public bool DebugLogging
     {
         get => _debugLogging;
         set => _debugLogging = value;
     }
 
+    [AddInLabel("Enable auto webhook registration"), AddInParameter("EnableAutoWebhookRegistration"), AddInParameterGroup("Webhook settings"), AddInParameterEditor(typeof(YesNoParameterEditor), "")]
+    public bool EnableAutoWebhookRegistration { get; set; }
+
+    [AddInLabel("Force webhook re-registration"), AddInParameter("ForceWebhookRegistration"), AddInParameterGroup("Webhook settings"), AddInParameterEditor(typeof(YesNoParameterEditor), "")]
+    public bool ForceWebhookRegistration { get; set; }
+
     #endregion
 
-    /// <summary>
-    /// Default constructor
-    /// </summary>
     public AuthorizeNetCheckoutHandler()
     {
         ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
@@ -137,23 +106,20 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             LogEvent(order, "Checkout started");
 
-            if (_formMode is RenderFormMode.Hosted)
-                return RedirectToHostedForm(order, service);
-
-            string javaScriptUrl = _formMode is RenderFormMode.Manual
-                ? AuthorizeNetEndpoints.GetAcceptJsUrl(TestMode)
-                : AuthorizeNetEndpoints.GetAcceptUiUrl(TestMode);
-
-            var template = new Template(TemplateHelper.GetTemplatePath(PaymentFormTemplate, TemplateFolders.PaymentFormTemplateFolder));
-            template.SetTag(Tags.ApiLoginId, ApiLoginId);
-            template.SetTag(Tags.AuthorizeNetJavaScriptUrl, javaScriptUrl);
-            template.SetTag(Tags.FormAction, $"{GetBaseUrl(order)}&action=FormPost");
-            template.SetTag(Tags.PublicClientKey, PublicClientKey);
-
-            return new ContentOutputResult
+            // Auto-register webhooks if needed
+            if (ShouldRegisterWebhooks(order))
             {
-                Content = Render(order, template)
-            };
+                try
+                {
+                    RegisterWebhooksAutomatically(order);
+                }
+                catch (Exception exception)
+                {
+                    LogError(order, exception, "Webhook auto-registration failed, continuing with payment: {0}", exception.Message);
+                }
+            }
+
+            return RedirectToHostedForm(order, service);
         }
         catch (Exception ex)
         {
@@ -188,13 +154,12 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             if (string.IsNullOrEmpty(action) && !string.IsNullOrEmpty(order.GatewayResult))
             {
-                Callback(order);
+                LogEvent(order, "GatewayResult found, but action is empty.");
                 return ContentOutputResult.Empty;
             }
 
             return action switch
             {
-                "FormPost" => CreatePaymentTransaction(order, null, service),
                 "Receipt" => OrderCompleted(order, 0, null),
                 "Cancel" => OrderCancelled(order),
                 _ => ContentOutputResult.Empty
@@ -209,7 +174,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     private OutputResult RedirectToHostedForm(Order order, AuthorizeNetService service)
     {
         LogEvent(order, "Redirect to Hosted Form");
-        double orderAmount = Ecommerce.Services.Currencies.Round(order.Currency, order.Price.Price);
+        double orderAmount = OrderHelper.GetOrderAmount(order);
 
         string baseUrl = GetBaseUrl(order);
         string encodedBaseUrl = baseUrl.Replace("&", "%26");
@@ -241,7 +206,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             }
         };
 
-        TransactionRequestType transactionRequest = CreateTransactionRequest(order, orderAmount, null, null, true);
+        TransactionRequestType transactionRequest = CreateHostedFormRequest(order, orderAmount);
         GetHostedPaymentPageResponse? response = service.GetHostedPaymentPage(transactionRequest, settings);
 
         if (IsResponseSuccessful(response, order))
@@ -262,22 +227,11 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     {
         service ??= GetAuthorizeNetService(order);
         LogEvent(order, "Create payment transaction");
-        double orderAmount = Ecommerce.Services.Currencies.Round(order.Currency, order.Price.Price);
+        double orderAmount = OrderHelper.GetOrderAmount(order);
 
-        PaymentType? payment = null;
-        if (profileToCharge is null)
-        {
-            payment = new PaymentType
-            {
-                OpaqueData = new OpaqueDataType
-                {
-                    DataValue = Converter.ToString(Context.Current?.Request["dataValue"]),
-                    DataDescriptor = Converter.ToString(Context.Current?.Request["dataDescriptor"]),
-                }
-            };
-        }
-
-        TransactionRequestType transactionRequest = CreateTransactionRequest(order, orderAmount, payment, profileToCharge, profileToCharge is null);
+        TransactionRequestType transactionRequest = profileToCharge is not null
+            ? CreateSavedCardPaymentRequest(order, orderAmount, profileToCharge)
+            : CreateDirectPaymentRequest(order, orderAmount);
         CreateTransactionResponse? response = service.CreateTransaction(transactionRequest);
 
         if (IsResponseSuccessful(response, order))
@@ -300,7 +254,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             order.TransactionCardNumber = response.TransactionResponse.AccountNumber;
 
             if (needSaveCard)
-                SaveCard(order, cardName, response.TransactionResponse.NetworkTransId, transactionAmount);
+                SaveCard(order, cardName);
         }
         else if (needSaveCard)
             order.GatewayPaymentStatus = $"{SecuritySettings.SavedCardNamePlaceholder}{cardName}";
@@ -339,108 +293,109 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
     private OutputResult OrderRefused(Order order, string? refusalReason) => OnError(order, $"Payment was refused. Refusal reason: {refusalReason}");
 
-    private TransactionRequestType CreateTransactionRequest(Order order, double orderAmount, PaymentType? payment, CustomerProfilePaymentType? profileToCharge, bool includeCustomerData)
+    /// <summary>
+    /// Creates a transaction request for hosted form payments (no direct payment data)
+    /// </summary>
+    /// <param name="order">Order to create the request for</param>
+    /// <param name="orderAmount">Amount of the order</param>
+    private TransactionRequestType CreateHostedFormRequest(Order order, double orderAmount)
     {
-        var request = new TransactionRequestType
-        {
-            Amount = orderAmount,
-            CurrencyCode = order.CurrencyCode,
-            Payment = payment,
-            LineItems = AuthorizeNetModelFactory.CreateLineItems(order),
-            Order = new Models.OrderType { InvoiceNumber = order.Id },
-            CustomerIp = StringHelper.Crop(order.Ip, 15),
-            Profile = profileToCharge,
-            TransactionType = _transactionType is TransactionType.AuthCaptureTransaction
-                ? TransactionTypeEnum.AuthCaptureTransaction
-                : TransactionTypeEnum.AuthOnlyTransaction
-        };
+        var request = CreateBaseTransactionRequest(order, orderAmount);
 
-        if (profileToCharge is not null)
+        // Include customer data for hosted form
+        AddCustomerData(request, order);
+
+        // Set stored credentials flag if card needs to be saved
+        if (NeedSaveCard(order, out _))
         {
-            PaymentCardToken? savedCard = Ecommerce.Services.PaymentCard.GetById(order.SavedCardId);
-            if (savedCard?.Token is not null)
+            request.ProcessingOptions = new ProcessingOptionsType
             {
-                (_, string? networkTransId, double? originalAmount) = ExtractCofData(savedCard.Token);
-                request.ProcessingOptions = new ProcessingOptionsType
-                {
-                    IsSubsequentAuth = true,
-                    IsStoredCredentials = true
-                };
-
-                if (!string.IsNullOrEmpty(networkTransId))
-                {
-                    request.SubsequentAuthInformation = new SubsequentAuthInformationType
-                    {
-                        OriginalNetworkTransId = networkTransId,
-                        OriginalAuthAmount = originalAmount ?? orderAmount,
-                        Reason = SubsequentAuthReasonEnum.Resubmission.ToEnumMemberValue()
-                    };
-                }
-            }
-        }
-        else if (NeedSaveCard(order, out _))
-            SetFirstTransactionFlags(request, true);
-
-        if (includeCustomerData)
-        {
-            request.BillTo = AuthorizeNetModelFactory.CreateBillAddress(order);
-            request.Customer = new CustomerDataType
-            {
-                Id = order.CustomerAccessUserId.ToString(),
-                Email = order.CustomerEmail
+                IsStoredCredentials = true
             };
-
-            var shipAddress = AuthorizeNetModelFactory.CreateShipAddress(order);
-            if (!string.IsNullOrEmpty(shipAddress.Address))
-                request.ShipTo = shipAddress;
         }
 
         return request;
     }
 
-    private void Callback(Order order)
+    /// <summary>
+    /// Creates a transaction request for direct payments with new card data
+    /// </summary>
+    /// <param name="order">Order to create the request for</param>
+    /// <param name="orderAmount">Amount of the order</param>
+    /// <param name="payment">Payment information</param>
+    private TransactionRequestType CreateDirectPaymentRequest(Order order, double orderAmount)
     {
-        LogEvent(order, "Notification callback started");
-        if (string.IsNullOrEmpty(SignatureKey))
-            throw new ArgumentNullException(nameof(SignatureKey), "Specify Signature key to handle notifications");
+        var request = CreateBaseTransactionRequest(order, orderAmount);
 
-        string? gatewayResult = order.GatewayResult;
-        order.GatewayResult = string.Empty;
-        Ecommerce.Services.Orders.UpdateGatewayResult(order, false);
-
-        string? hmacSignature = Context.Current?.Request?.Headers["X-ANET-Signature"]?.Replace("sha512=", string.Empty);
-        if (!HmacValidator.IsValid(SignatureKey.Trim(), gatewayResult, hmacSignature))
+        // Set stored credentials flag if card needs to be saved
+        if (NeedSaveCard(order, out _))
         {
-            LogError(order, "Cannot handle notification item: HMAC validation failed");
-            return;
+            request.ProcessingOptions = new ProcessingOptionsType
+            {
+                IsStoredCredentials = true
+            };
         }
 
-        NotificationItem? requestData = Converter.Deserialize<NotificationItem>(gatewayResult);
-        if (requestData?.Payload is null)
-            return;
+        return request;
+    }
 
-        NotificationPayload payload = requestData.Payload;
+    /// <summary>
+    /// Creates a transaction request for payments with saved card (Customer Profile)
+    /// </summary>
+    /// <param name="order">Order to create the request for</param>
+    /// <param name="orderAmount">Amount of the order</param>
+    /// <param name="profileToCharge">Customer profile to charge</param>
+    private TransactionRequestType CreateSavedCardPaymentRequest(Order order, double orderAmount, CustomerProfilePaymentType profileToCharge)
+    {
+        var request = CreateBaseTransactionRequest(order, orderAmount);
+        request.Profile = profileToCharge;
 
-        switch (requestData.GetEventType())
+        // For Customer Profiles, Authorize.Net automatically handles COF indicators
+        // No need for additional processing options or subsequent auth information
+
+        return request;
+    }
+
+    /// <summary>
+    /// Creates the base transaction request with common fields
+    /// </summary>
+    /// <param name="order">Order to create the request for</param>
+    /// <param name="orderAmount">Amount of the order</param>
+    private TransactionRequestType CreateBaseTransactionRequest(Order order, double orderAmount)
+    {
+        return new TransactionRequestType
         {
-            case NotificationEventType.AuthCaptureCreated:
-            case NotificationEventType.AuthCreated:
-                HandleAuthOrCaptureCallback(order, payload, requestData.GetEventType() == NotificationEventType.AuthCaptureCreated);
-                break;
+            Amount = orderAmount,
+            CurrencyCode = order.CurrencyCode,
+            LineItems = AuthorizeNetModelFactory.CreateLineItems(order),
+            Order = new Models.OrderType
+            {
+                InvoiceNumber = order.Id
+            },
+            CustomerIp = StringHelper.Crop(order.Ip, 15),
+            TransactionType = _transactionType is TransactionType.AuthCaptureTransaction
+                ? TransactionTypeEnum.AuthCaptureTransaction
+                : TransactionTypeEnum.AuthOnlyTransaction
+        };
+    }
 
-            case NotificationEventType.CaptureCreated:
-            case NotificationEventType.PriorAuthCaptureCreated:
-                HandleCaptureCallback(order, payload);
-                break;
+    /// <summary>
+    /// Adds customer billing and shipping data to the request
+    /// </summary>
+    /// <param name="request">Transaction request to add customer data to</param>
+    /// <param name="order">Order containing customer data</param>
+    private void AddCustomerData(TransactionRequestType request, Order order)
+    {
+        request.BillTo = AuthorizeNetModelFactory.CreateBillAddress(order);
+        request.Customer = new CustomerDataType
+        {
+            Id = order.CustomerAccessUserId.ToString(),
+            Email = order.CustomerEmail
+        };
 
-            case NotificationEventType.RefundCreated:
-                HandleRefundCallback(order, payload);
-                break;
-
-            case NotificationEventType.VoidCreated:
-                HandleVoidCallback(order, payload);
-                break;
-        }
+        var shipAddress = AuthorizeNetModelFactory.CreateShipAddress(order);
+        if (!string.IsNullOrEmpty(shipAddress.Address))
+            request.ShipTo = shipAddress;
     }
 
     private void HandleAuthOrCaptureCallback(Order order, NotificationPayload payload, bool isCaptured)
@@ -466,9 +421,9 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             if (order.GatewayPaymentStatus?.StartsWith(SecuritySettings.SavedCardNamePlaceholder) is true)
             {
-                var cardName = order.GatewayPaymentStatus.Substring(SecuritySettings.SavedCardNamePlaceholder.Length);
+                string cardName = order.GatewayPaymentStatus.Substring(SecuritySettings.SavedCardNamePlaceholder.Length);
                 order.GatewayPaymentStatus = string.Empty;
-                SaveCard(order, cardName, transactionDetails?.NetworkTransId, payload.Amount);
+                SaveCard(order, cardName);
             }
         }
 
@@ -591,6 +546,8 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <summary>
     /// Attempt to perform transaction void
     /// </summary>
+    /// <param name="order">Order to void</param>
+    /// <param name="service">Authorize.Net service instance</param>
     private bool TryVoidTransaction(Order order, AuthorizeNetService service)
     {
         var transactionRequest = new TransactionRequestType
@@ -614,13 +571,11 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         return false;
     }
 
-
     /// <summary>
     /// Captures the authorized amount
     /// Capture must occur within 30 days of authorization
     /// </summary>
     /// <param name="order">Order to capture funds for</param>
-    /// <returns>Information about the capture operation result</returns>
     public OrderCaptureInfo Capture(Order order)
     {
         try
@@ -654,7 +609,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, errorText);
             }
 
-            double orderAmount = order.Price.Price;
+            double orderAmount = OrderHelper.GetOrderAmount(order);
 
             var transactionRequest = new TransactionRequestType
             {
@@ -789,9 +744,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         }
     }
 
-    /// <summary>
-    /// Basic validation for partial capture
-    /// </summary>
     private (bool isValid, string? errorMessage) ValidatePartialCapture(Order order, long amount, bool final)
     {
         if (amount <= 0)
@@ -799,7 +751,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
         // Check that we don't exceed original authorized amount
         double totalRequestedAmount = order.CaptureAmount + (amount / 100.0);
-        double authorizedAmount = order.Price.Price;
+        double authorizedAmount = OrderHelper.GetOrderAmount(order);
 
         if (totalRequestedAmount > authorizedAmount)
             return (false, $"Total capture amount ({totalRequestedAmount:C}) cannot exceed authorized amount ({authorizedAmount:C})");
@@ -808,52 +760,98 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     }
 
     /// <summary>
-    /// Performs a full refund for the order (Refund transaction)
+    /// Performs a full refund for the order
     /// </summary>
     /// <param name="order">Order to refund</param>
-    public void FullReturn(Order order)
+    public void FullReturn(Order order)    
+      => ProceedReturn(order, null);
+
+    /// <summary>
+    /// Performs a partial refund for the order
+    /// </summary>
+    /// <param name="order">Order to refund</param>
+    /// <param name="originalOrder">Original order for reference</param>
+    public void PartialReturn(Order order, Order originalOrder) =>
+        ProceedReturn(originalOrder, order?.Price?.PricePIP);
+    
+    private void ProceedReturn(Order order, long? amount)
     {
+        if (order is null)
+        {
+            LogError(null, PreparedMessages.OrderNotSetMessage);
+            OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, PreparedMessages.OrderNotSetMessage, 0, order);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(order.Id))
+        {
+            LogError(order, PreparedMessages.OrderIdNotSetMessage);
+            OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, PreparedMessages.OrderIdNotSetMessage, 0, order);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(order.TransactionNumber))
+        {
+            LogError(order, PreparedMessages.TransactionNumberNotSetMessage);
+            OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, PreparedMessages.TransactionNumberRequiredMessage, 0, order);
+            return;
+        }
+
+        string errorText = OrderHelper.GetOrderError(order);
+        if (!string.IsNullOrEmpty(errorText))
+        {
+            LogError(order, errorText);
+            OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, errorText, 0, order);
+            return;
+        }
+
+        double operationAmount = amount is null 
+            ? order.CaptureAmount 
+            : Converter.ToDouble(amount) / 100;
+
+        if (order.CaptureInfo is null || order.CaptureInfo.State is not OrderCaptureInfo.OrderCaptureState.Success || order.CaptureAmount <= 0.00)
+        {
+            string errorMessage = "Order must be captured before return.";
+            OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, errorMessage, order.CaptureAmount, order);
+            LogError(null, errorMessage);
+            return;
+        }
+
+        if (amount is not null && order.CaptureAmount < operationAmount)
+        {
+            string formattedAmount = Ecommerce.Services.Currencies.Format(order.Currency, order.CaptureAmount);
+            string formattedRequestedAmount = Ecommerce.Services.Currencies.Format(order.Currency, operationAmount);
+
+            OrderReturnInfo.SaveReturnOperation
+            (
+                OrderReturnOperationState.Failed,
+                $"Order captured amount ({formattedAmount}) less than amount requested for return({formattedRequestedAmount}).",
+                operationAmount,
+                order
+            );
+            LogError(order, "Order captured amount less then amount requested for return.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(order.TransactionCardNumber) || order.TransactionCardNumber.Length < 4)
+        {
+            string errorMessage = "Invalid card number for refund. Last 4 digits of the card number are required.";
+            OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, errorMessage, operationAmount, order);
+            LogError(order, errorMessage);
+            return;
+        }
+
         try
         {
             AuthorizeNetService service = GetAuthorizeNetService(order);
-
-            if (order is null)
-            {
-                LogError(null, PreparedMessages.OrderNotSetMessage);
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, PreparedMessages.OrderNotSetMessage, 0, order);
-                return;
-            }
-
-            if (string.IsNullOrEmpty(order.Id))
-            {
-                LogError(order, PreparedMessages.OrderIdNotSetMessage);
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, PreparedMessages.OrderIdNotSetMessage, 0, order);
-                return;
-            }
-
-            if (string.IsNullOrEmpty(order.TransactionNumber))
-            {
-                LogError(order, PreparedMessages.TransactionNumberNotSetMessage);
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, PreparedMessages.TransactionNumberRequiredMessage, 0, order);
-                return;
-            }
-
-            string errorText = OrderHelper.GetOrderError(order);
-            if (!string.IsNullOrEmpty(errorText))
-            {
-                LogError(order, errorText);
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, errorText, 0, order);
-                return;
-            }
-
-            double refundAmount = order.TransactionAmount;
-            TransactionRequestType transactionRequest = CreateRefundRequest(order, refundAmount);
+          
+            TransactionRequestType transactionRequest = CreateRefundRequest(order, operationAmount);
             CreateTransactionResponse? response = service.CreateTransaction(transactionRequest);
 
             if (IsResponseSuccessful(response, order))
             {
-                LogEvent(order, $"Refund successful for amount: {refundAmount:C}");
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.FullyReturned, PreparedMessages.RefundSuccessMessage, refundAmount, order);
+                LogEvent(order, $"Refund successful for amount: {operationAmount:C}");
+                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.FullyReturned, PreparedMessages.RefundSuccessMessage, operationAmount, order);
             }
             else
             {
@@ -862,8 +860,14 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                                  ?? "Refund failed";
 
                 LogError(order, infoText);
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, infoText, refundAmount, order);
+                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, infoText, operationAmount, order);
             }
+           
+            var operationState = amount is null
+                ? OrderReturnOperationState.FullyReturned
+                : OrderReturnOperationState.PartiallyReturned;
+            OrderReturnInfo.SaveReturnOperation(operationState, "Authorize.Net has refunded payment.", operationAmount, order);
+            
         }
         catch (Exception ex)
         {
@@ -876,6 +880,8 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <summary>
     /// Creates a refund request
     /// </summary>
+    /// <param name="order">Order to refund</param>
+    /// <param name="refundAmount">Amount to refund</param>
     private TransactionRequestType CreateRefundRequest(Order order, double refundAmount)
     {
         var transactionRequest = new TransactionRequestType
@@ -889,24 +895,18 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 InvoiceNumber = order.Id
             }
         };
-
-        // Add payment card information if available
-        if (!string.IsNullOrEmpty(order.TransactionCardNumber) && order.TransactionCardNumber.Length >= 4)
+                      
+        transactionRequest.Payment = new PaymentType
         {
-            transactionRequest.Payment = new PaymentType
+            CreditCard = new CreditCardType
             {
-                CreditCard = new CreditCardType
-                {
-                    CardNumber = order.TransactionCardNumber,
-                    ExpirationDate = SecuritySettings.CreditCardExpirationMask
-                }
-            };
-        }
+                CardNumber = order.TransactionCardNumber[^4..],
+                ExpirationDate = SecuritySettings.CreditCardExpirationMask
+            }
+        };        
 
         return transactionRequest;
     }
-
-
 
     /// <summary>
     /// Deletes a saved card from the customer profile in Authorize.Net
@@ -923,7 +923,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             return;
         }
 
-        (string? cardToken, _, _) = ExtractCofData(savedCard.Token);
+        string? cardToken = savedCard.Token;
         int userId = savedCard.UserID;
 
         if (userId <= 0)
@@ -949,7 +949,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 return;
             }
 
-            var response = service.DeleteCustomerPaymentProfile(profile.CustomerProfileId, cardToken);
+            DeleteCustomerPaymentProfileResponse? response = service.DeleteCustomerPaymentProfile(profile.CustomerProfileId, cardToken);
             if (response is not null && Enum.TryParse(response.Messages?.ResultCode, true, out MessageTypeEnum resultCode) &&
                 resultCode == MessageTypeEnum.Ok)
             {
@@ -1024,7 +1024,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         if (string.IsNullOrEmpty(profile?.CustomerProfileId))
             throw new InvalidOperationException($"Customer profile not found for user: {order.CustomerAccessUserId}");
 
-        (string? cardToken, string? networkTransId, double? originalAmount) = ExtractCofData(savedCard.Token);
+        string? cardToken = savedCard.Token;
         if (string.IsNullOrEmpty(cardToken))
             throw new ArgumentException($"Invalid card token extracted from saved card: {order.SavedCardId}");
 
@@ -1054,28 +1054,18 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
     /// <summary>
     /// A temporary method to maintain previous behavior. Redirects to cart by Response.Redirect.
-    /// Please remove it when the needed changes will be done.
+    /// Please remove this code after making the necessary changes, when we have a new redirect method (which returns RedirectOutputResult instead of a string).
     /// </summary>
     private void RedirectToCart(RedirectOutputResult redirectResult)
     {
         Context.Current?.Response?.Redirect(redirectResult.RedirectUrl);
     }
 
-    /// <summary>
-    /// Helper method for logging without Order object
-    /// </summary>
-    private void Log(string message)
-    {
+    private void Log(string message) =>
         Ecommerce.Services.OrderDebuggingInfos.Save(null, message, "Authorize.Net checkout handler", DebuggingInfoType.Undefined);
-    }
 
-    /// <summary>
-    /// Enhanced error logging method with formatting support
-    /// </summary>
-    private void LogError(Order? order, Exception exception, string message)
-    {
+    private void LogError(Order? order, Exception exception, string message) =>
         Ecommerce.Services.OrderDebuggingInfos.Save(order, $"{message}. Exception: {exception}", "Authorize.Net checkout handler", DebuggingInfoType.Undefined);
-    }
 
     /// <summary>
     /// Checks if saved cards are supported for the given order
@@ -1098,7 +1088,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         return false;
     }
 
-    private void SaveCard(Order order, string cardName, string? networkTransId, double? originalAmount)
+    private void SaveCard(Order order, string cardName)
     {
         if (!AllowSaveCards || order.CustomerAccessUserId <= 0)
             return;
@@ -1112,28 +1102,20 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         if (string.IsNullOrEmpty(cardToken))
             return;
 
-        var finalToken = !string.IsNullOrEmpty(networkTransId) && originalAmount.HasValue
-            ? $"{cardToken}|{networkTransId}|{originalAmount:F2}"
-            : cardToken;
-
         PaymentCardToken? existingCard = Ecommerce.Services.PaymentCard.GetByUserId(order.CustomerAccessUserId)
-            .FirstOrDefault(t => ExtractCofData(t.Token).cardToken == cardToken);
+            .FirstOrDefault(token => string.Equals(token.Token, cardToken, StringComparison.Ordinal));
 
         if (existingCard is null)
         {
             existingCard = Ecommerce.Services.PaymentCard.CreatePaymentCard(
                 order.CustomerAccessUserId, order.PaymentMethodId, cardName,
-                order.TransactionCardType, order.TransactionCardNumber, finalToken
+                order.TransactionCardType, order.TransactionCardNumber, cardToken
             );
-        }
-        else if (!string.IsNullOrEmpty(networkTransId) && !string.Equals(existingCard.Token, finalToken, StringComparison.Ordinal))
-        {
-            existingCard.Token = finalToken;
         }
 
         order.SavedCardId = existingCard.ID;
         Save(order);
-        LogEvent(order, "Saved card with COF data: {0}", existingCard.Name);
+        LogEvent(order, "Saved card: {0}", existingCard.Name);
     }
 
     private CustomerProfileMaskedType? GetCustomerProfile(AuthorizeNetService service, int userId, bool tryCreate) => service.GetCustomerProfile(userId, tryCreate);
@@ -1189,32 +1171,11 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
     private void Save(Order order) => Ecommerce.Services.Orders.Save(order);
 
-    private void SetFirstTransactionFlags(TransactionRequestType request, bool isCardOnFile)
-    {
-        if (!isCardOnFile)
-            return;
-
-        if (request.ProcessingOptions is null)
-            request.ProcessingOptions = new ProcessingOptionsType();
-
-        request.ProcessingOptions.IsStoredCredentials = true;
-    }
-
-    private (string? cardToken, string? networkTransId, double? originalAmount) ExtractCofData(string? token)
-    {
-        if (string.IsNullOrEmpty(token))
-            return (token, null, null);
-
-        string[] parts = token.Split('|');
-
-        return parts.Length >= 3
-            ? (parts[0], parts[1], Converter.ToNullableDouble(parts[2]))
-            : (token, null, null);
-    }
-
     /// <summary>
     /// Checks if response from Authorize.Net API is successful
     /// </summary>
+    /// <param name="response">Response from Authorize.Net API</param>
+    /// <param name="order">Order for logging context</param>
     private bool IsResponseSuccessful(CreateTransactionResponse? response, Order? order)
     {
         if (response?.TransactionResponse is null)
@@ -1241,6 +1202,8 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <summary>
     /// Checks if response from Authorize.Net API is successful (for GetHostedPaymentPage)
     /// </summary>
+    /// <param name="response">Response from Authorize.Net API</param>
+    /// <param name="order">Order for logging context</param>
     private bool IsResponseSuccessful([NotNullWhen(true)] GetHostedPaymentPageResponse? response, Order? order)
     {
         if (response is null)
@@ -1264,12 +1227,285 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <summary>
     /// Checks if capture is supported for the given order
     /// </summary>
+    /// <param name="order">Order to check</param>
     public bool CaptureSupported(Order order) => true;
-
 
     /// <summary>
     /// Checks if split capture is supported for the given order
     /// </summary>
+    /// <param name="order">Order to check</param>
     public bool SplitCaptureSupported(Order order) => true;
+
+    #region Webhook Management
+
+    /// <summary>
+    /// Determines if webhook registration should be performed
+    /// </summary>
+    /// <param name="order">Order to check</param>
+    private bool ShouldRegisterWebhooks(Order order)
+    {
+        // Force re-registration always takes priority
+        if (ForceWebhookRegistration)
+            return true;
+
+        // Auto registration only if enabled AND no webhooks exist yet
+        if (EnableAutoWebhookRegistration)
+        {
+            try
+            {
+                string webhookUrl = BuildWebhookUrl(order);
+                AuthorizeNetService service = GetAuthorizeNetService();
+
+                // Check if webhooks already exist for this URL
+                WebhookListResponse existingWebhooks = service.GetWebhooks();
+                List<WebhookResponse> ourWebhooks = existingWebhooks.Webhooks
+                    .Where(w => webhookUrl.Equals(w.Url, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                // Only register if no webhooks exist for our URL
+                return ourWebhooks.Count == 0;
+            }
+            catch (Exception ex)
+            {
+                // If we can't check existing webhooks, skip auto-registration to be safe
+                var logger = new AuthorizeNetLogger(DebugLogging, order);
+                logger.LogError(ex, "Failed to check existing webhooks, skipping auto-registration: {0}", ex.Message);
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Automatically registers webhooks if needed and updates parameters
+    /// </summary>
+    /// <param name="order">Order for logging context</param>
+    private void RegisterWebhooksAutomatically(Order order)
+    {
+        string operation = ForceWebhookRegistration ? "Force re-registering" : "Auto-registering";
+        LogEvent(order, "{0} webhooks", operation);
+
+        try
+        {
+            string webhookUrl = BuildWebhookUrl(order);
+            var service = GetAuthorizeNetService(order);
+
+            var response = service.EnsureWebhooksRegistered(webhookUrl, ForceWebhookRegistration);
+
+            if (response is not null && !string.IsNullOrEmpty(response.WebhookId))
+            {
+                var payment = Ecommerce.Services.Payments.GetPayment(order.PaymentMethodId);
+                if (payment is not null)
+                {
+                    // Reset force re-registration flag after successful registration
+                    if (ForceWebhookRegistration)
+                        ForceWebhookRegistration = false;
+
+                    // Save updated parameters back to payment method
+                    payment.CheckoutParameters = GetParametersToXml();
+                    Ecommerce.Services.Payments.Save(payment);
+
+                    LogEvent(order, "Webhooks {0} successfully. Webhook ID: {1}", operation, response.WebhookId);
+                }
+                else
+                {
+                    LogError(order, "Failed to retrieve payment method to save webhook parameters");
+                }
+            }
+            else
+            {
+                LogEvent(order, "No webhook changes were needed");
+            }
+        }
+        catch (Exception ex)
+        {
+            LogError(order, ex, "Webhook {0} failed: {1}", operation, ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Builds webhook callback URL for webhook registration using DW10 centralized ExternalCallback architecture
+    /// </summary>
+    private string BuildWebhookUrl(Order order)
+    {
+        /*
+
+        // Get base URL (this may include Default.aspx and query parameters)
+        string baseUrl = GetBaseUrl(order);
+
+        // Extract protocol, domain, and port from the base URL
+        var uri = new Uri(baseUrl);
+        string baseUrlClean = $"{uri.Scheme}://{uri.Authority}";
+
+        // Build DW10 ExternalCallback URL
+        // Format: /dwapi/ecommerce/carts/callback/{checkoutHandlerName}
+        string handlerName = AddInManager.GetAddInName(GetType()); // Must match AddInName exactly
+        string webhookUrl = $"{baseUrlClean}/dwapi/ecommerce/carts/callback/{Uri.EscapeDataString(handlerName)}";
+
+        return webhookUrl; 
+        */
+
+        //Returns the test webhook URL for testing purposes. Please replace it with the actual URL when using the webhook functionality.
+
+        return "https://webhook.site/4a746d3d-4deb-4412-9736-f1dafb2f1f87";
+    }
+
+    /// <summary>
+    /// Gets AuthorizeNetService instance
+    /// </summary>
+    private AuthorizeNetService GetAuthorizeNetService() =>
+        new AuthorizeNetService(ApiLoginId, TransactionKey, TestMode, DebugLogging, null, null);
+
+    /// <summary>
+    /// Gets AuthorizeNetService instance with Order context for enhanced logging
+    /// </summary>
+    /// <param name="order">Order for logging context</param>
+    private AuthorizeNetService GetAuthorizeNetService(Order order)
+    {
+        var logger = new AuthorizeNetLogger(DebugLogging, order);
+
+        return new AuthorizeNetService(ApiLoginId, TransactionKey, TestMode, DebugLogging, logger, order);
+    }
+
+    #endregion
+
+    #region ICheckoutHandlerCallback Implementation
+
+    /// <summary>
+    /// Extracts order from webhook callback data
+    /// <param name="data">The callback data containing the webhook payload</param>
+    /// </summary>
+    public static Order? GetOrderFromCallback(CallbackData data)
+    {
+        var logger = new AuthorizeNetLogger(true);
+
+        try
+        {
+            // Parse the webhook payload from the body
+            var webhookPayload = Converter.Deserialize<NotificationItem>(data.Body);
+            if (webhookPayload?.Payload is null)
+            {
+                logger.LogError("Invalid webhook payload: missing notification data");
+                return null;
+            }
+
+            string orderId = webhookPayload.Payload.OrderId;
+            if (string.IsNullOrEmpty(orderId))
+            {
+                logger.LogError("Invalid webhook payload: missing order ID");
+                return null;
+            }
+
+            var order = Ecommerce.Services.Orders.GetById(orderId);
+            if (order is null)
+            {
+                logger.LogError("Order not found: {0}", orderId);
+                return null;
+            }
+
+            // Store the webhook payload in GatewayResult for processing
+            order.GatewayResult = data.Body;
+
+            return order;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to extract order from callback data: {0}", ex.Message);
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Handles webhook callback processing
+    /// <param name="order">The order associated with the webhook callback</param>
+    /// <param name="data">The callback data containing the webhook payload</param>
+    /// </summary>
+    public OutputResult HandleCallback(Order order, CallbackData data)
+    {
+        try
+        {
+            if (order is null)
+            {
+                LogError(order, "Webhook processing skipped. Order is not set");
+                return ContentOutputResult.Empty;
+            }
+
+            LogEvent(order, "Webhook callback processing started via DW10 architecture");
+
+            // Validate HMAC signature
+            if (string.IsNullOrEmpty(SignatureKey))
+            {
+                LogError(order, "Cannot handle webhook: Signature key not configured");
+                return ContentOutputResult.Empty;
+            }
+
+            string? hmacSignature = data.Headers
+                .FirstOrDefault(h => h.Key.Equals("X-ANET-Signature", StringComparison.OrdinalIgnoreCase))
+                .Value?.FirstOrDefault()?.Replace("sha512=", string.Empty);
+
+            if (!HmacValidator.IsValid(SignatureKey.Trim(), data.Body, hmacSignature))
+            {
+                string logSignature = string.IsNullOrEmpty(hmacSignature) ? "null" : hmacSignature.Substring(0, Math.Min(8, hmacSignature.Length)) + "...";
+                LogError(order, "Webhook HMAC validation failed. Signature: {0}", logSignature);
+                return ContentOutputResult.Empty;
+            }
+
+            // Clear GatewayResult to prevent reprocessing
+            order.GatewayResult = string.Empty;
+            Ecommerce.Services.Orders.UpdateGatewayResult(order, false);
+
+            // Parse the webhook payload
+            var webhookPayload = Converter.Deserialize<NotificationItem>(data.Body);
+            if (webhookPayload?.Payload is null)
+            {
+                LogError(order, "Invalid webhook payload: missing notification data");
+                return ContentOutputResult.Empty;
+            }
+
+            var payload = webhookPayload.Payload;
+            var eventType = webhookPayload.GetEventType();
+
+            LogEvent(order, "Processing webhook event: {0} for transaction: {1}", eventType, payload.Id);
+
+            // Process the webhook based on event type
+            switch (eventType)
+            {
+                case NotificationEventType.AuthCaptureCreated:
+                case NotificationEventType.AuthCreated:
+                    HandleAuthOrCaptureCallback(order, payload, eventType == NotificationEventType.AuthCaptureCreated);
+                    break;
+
+                case NotificationEventType.CaptureCreated:
+                case NotificationEventType.PriorAuthCaptureCreated:
+                    HandleCaptureCallback(order, payload);
+                    break;
+
+                case NotificationEventType.RefundCreated:
+                    HandleRefundCallback(order, payload);
+                    break;
+
+                case NotificationEventType.VoidCreated:
+                    HandleVoidCallback(order, payload);
+                    break;
+
+                default:
+                    LogEvent(order, "Unhandled webhook event type: {0}", eventType);
+                    break;
+            }
+
+            LogEvent(order, "Webhook callback processing completed successfully");
+            return ContentOutputResult.Empty;
+        }
+        catch (Exception ex)
+        {
+            LogError(order, ex, "Webhook callback processing failed: {0}", ex.Message);
+            return ContentOutputResult.Empty;
+        }
+    }
+
+    #endregion
 
 }

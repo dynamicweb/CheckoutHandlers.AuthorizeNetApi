@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<TransactionStatusEnum>))]
-[DataContract(Name = "transactionStatusEnum")]
+[DataContract]
 internal enum TransactionStatusEnum
 {
     [EnumMember(Value = "authorizedPendingCapture")]
@@ -80,5 +80,3 @@ internal enum TransactionStatusEnum
     [EnumMember(Value = "authorizedPendingRelease")]
     AuthorizedPendingRelease
 }
-
-

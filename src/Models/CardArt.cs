@@ -2,22 +2,22 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "cardArt")]
+[DataContract]
 internal sealed class CardArt
 {
-    [DataMember(Name = "cardBrand")]
+    [DataMember(Name = "cardBrand", EmitDefaultValue = false)]
     public string CardBrand { get; set; } = "";
 
-    [DataMember(Name = "cardImageHeight")]
+    [DataMember(Name = "cardImageHeight", EmitDefaultValue = false)]
     public string CardImageHeight { get; set; } = "";
 
-    [DataMember(Name = "cardImageUrl")]
+    [DataMember(Name = "cardImageUrl", EmitDefaultValue = false)]
     public string CardImageUrl { get; set; } = "";
 
-    [DataMember(Name = "cardImageWidth")]
+    [DataMember(Name = "cardImageWidth", EmitDefaultValue = false)]
     public string CardImageWidth { get; set; } = "";
 
-    [DataMember(Name = "cardType")]
+    [DataMember(Name = "cardType", EmitDefaultValue = false)]
     public string CardType { get; set; } = "";
 }
 

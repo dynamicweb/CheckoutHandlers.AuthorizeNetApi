@@ -1,17 +1,23 @@
 using System.Runtime.Serialization;
+using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "subsequentAuthInformationType")]
+[DataContract]
 internal sealed class SubsequentAuthInformationType
 {
-    [DataMember(Name = "originalNetworkTransId")]
+    [DataMember(Name = "originalNetworkTransId", EmitDefaultValue = false)]
     public string OriginalNetworkTransId { get; set; } = "";
 
-    [DataMember(Name = "originalAuthAmount")]
-    public double OriginalAuthAmount { get; set; }
+    private double _originalAuthAmount;
 
-    [DataMember(Name = "reason")]
+    [DataMember(Name = "originalAuthAmount", EmitDefaultValue = false)]
+    public double OriginalAuthAmount 
+    { 
+        get => _originalAuthAmount;
+        set => _originalAuthAmount = AmountHelper.AdjustAmount(value);
+    }
+
+    [DataMember(Name = "reason", EmitDefaultValue = false)]
     public string Reason { get; set; } = "";
 }
-

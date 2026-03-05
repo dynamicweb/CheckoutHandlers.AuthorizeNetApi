@@ -2,11 +2,9 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "paymentProfile")]
+[DataContract]
 internal sealed class PaymentProfile
 {
-    [DataMember(Name = "paymentProfileId")]
+    [DataMember(Name = "paymentProfileId", EmitDefaultValue = false)]
     public string PaymentProfileId { get; set; } = "";
 }
-
-

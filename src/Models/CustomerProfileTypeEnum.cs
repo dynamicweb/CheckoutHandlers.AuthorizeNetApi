@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<CustomerProfileTypeEnum>))]
-[DataContract(Name = "customerProfileTypeEnum")]
+[DataContract]
 internal enum CustomerProfileTypeEnum
 {
     [EnumMember(Value = "regular")]
@@ -14,5 +14,3 @@ internal enum CustomerProfileTypeEnum
     [EnumMember(Value = "guest")]
     Guest
 }
-
-

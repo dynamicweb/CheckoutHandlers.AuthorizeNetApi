@@ -2,17 +2,15 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "secureAcceptance")]
+[DataContract]
 internal sealed class SecureAcceptance
 {
-    [DataMember(Name = "secureAcceptanceUrl")]
+    [DataMember(Name = "secureAcceptanceUrl", EmitDefaultValue = false)]
     public string SecureAcceptanceUrl { get; set; } = "";
 
-    [DataMember(Name = "payerID")]
+    [DataMember(Name = "payerID", EmitDefaultValue = false)]
     public string PayerID { get; set; } = "";
 
-    [DataMember(Name = "payerEmail")]
+    [DataMember(Name = "payerEmail", EmitDefaultValue = false)]
     public string PayerEmail { get; set; } = "";
 }
-
-

@@ -2,17 +2,15 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "driversLicenseMaskedType")]
+[DataContract]
 internal sealed class DriversLicenseMaskedType
 {
-    [DataMember(Name = "number")]
+    [DataMember(Name = "number", EmitDefaultValue = false)]
     public string Number { get; set; } = "";
 
-    [DataMember(Name = "state")]
+    [DataMember(Name = "state", EmitDefaultValue = false)]
     public string State { get; set; } = "";
 
-    [DataMember(Name = "dateOfBirth")]
+    [DataMember(Name = "dateOfBirth", EmitDefaultValue = false)]
     public string DateOfBirth { get; set; } = "";
 }
-
-

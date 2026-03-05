@@ -8,5 +8,3 @@ internal sealed class GetTransactionDetailsRequestWrapper
     [DataMember(Name = "getTransactionDetailsRequest")]
     public GetTransactionDetailsRequest GetTransactionDetailsRequest { get; set; } = new();
 }
-
-

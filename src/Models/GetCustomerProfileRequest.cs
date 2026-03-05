@@ -2,22 +2,15 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "getCustomerProfileRequest")]
+[DataContract]
 internal sealed class GetCustomerProfileRequest
 {
     [DataMember(Name = "merchantAuthentication")]
     public MerchantAuthenticationType MerchantAuthentication { get; set; } = new();
 
-    [DataMember(Name = "clientId")]
-    public string ClientId { get; set; } = "";
-
-    [DataMember(Name = "refId")]
+    [DataMember(Name = "refId", EmitDefaultValue = false)]
     public string RefId { get; set; } = "";
 
-    [DataMember(Name = "merchantCustomerId")]
+    [DataMember(Name = "merchantCustomerId", EmitDefaultValue = false)]
     public string MerchantCustomerId { get; set; } = "";
 }
-
-
-
-

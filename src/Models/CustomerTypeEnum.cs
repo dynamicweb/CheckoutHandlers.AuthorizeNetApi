@@ -14,5 +14,3 @@ internal enum CustomerTypeEnum
     [EnumMember(Value = "business")]
     Business
 }
-
-

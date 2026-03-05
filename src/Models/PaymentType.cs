@@ -2,41 +2,33 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "paymentType")]
+[DataContract]
 internal sealed class PaymentType
 {
-    [DataMember(Name = "opaqueData")]
-    public OpaqueDataType OpaqueData { get; set; } = new();
-
-    [DataMember(Name = "creditCard")]
+    [DataMember(Name = "creditCard", EmitDefaultValue = false)]
     public CreditCardType CreditCard { get; set; } = new();
 
-    [DataMember(Name = "bankAccount")]
-    public string BankAccount { get; set; } = "";
-
-    [DataMember(Name = "trackData")]
+     [DataMember(Name = "trackData", EmitDefaultValue = false)]
     public string TrackData { get; set; } = "";
 
-    [DataMember(Name = "encryptedTrackData")]
+    [DataMember(Name = "encryptedTrackData", EmitDefaultValue = false)]
     public string EncryptedTrackData { get; set; } = "";
 
-    [DataMember(Name = "payPal")]
+    [DataMember(Name = "payPal", EmitDefaultValue = false)]
     public PayPalType PayPal { get; set; } = new();
 
-    [DataMember(Name = "emv")]
+    [DataMember(Name = "emv", EmitDefaultValue = false)]
     public PaymentEmvType Emv { get; set; } = new();
 
-    [DataMember(Name = "dataSource")]
+    [DataMember(Name = "dataSource", EmitDefaultValue = false)]
     public string DataSource { get; set; } = "";
 
-    [DataMember(Name = "paymentMaskedType")]
+    [DataMember(Name = "paymentMaskedType", EmitDefaultValue = false)]
     public PaymentMaskedType PaymentMaskedType { get; set; } = new();
 
-    [DataMember(Name = "tokenMaskedType")]
+    [DataMember(Name = "tokenMaskedType", EmitDefaultValue = false)]
     public TokenMaskedType TokenMaskedType { get; set; } = new();
 
-    [DataMember(Name = "tokenRequestorId")]
+    [DataMember(Name = "tokenRequestorId", EmitDefaultValue = false)]
     public string TokenRequestorId { get; set; } = "";
 }
-
-

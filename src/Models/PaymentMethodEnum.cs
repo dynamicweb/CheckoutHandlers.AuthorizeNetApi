@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<PaymentMethodEnum>))]
-[DataContract(Name = "paymentMethodEnum")]
+[DataContract]
 internal enum PaymentMethodEnum
 {
     [EnumMember(Value = "creditCard")]
@@ -17,5 +17,3 @@ internal enum PaymentMethodEnum
     [EnumMember(Value = "payPal")]
     PayPal
 }
-
-

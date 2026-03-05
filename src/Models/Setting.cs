@@ -2,14 +2,12 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "setting")]
+[DataContract]
 internal sealed class Setting
 {
-    [DataMember(Name = "settingName")]
+    [DataMember(Name = "settingName", EmitDefaultValue = false)]
     public string SettingName { get; set; } = "";
 
-    [DataMember(Name = "settingValue")]
+    [DataMember(Name = "settingValue", EmitDefaultValue = false)]
     public string SettingValue { get; set; } = "";
 }
-
-

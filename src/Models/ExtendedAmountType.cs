@@ -1,18 +1,23 @@
 using System.Runtime.Serialization;
+using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "extendedAmountType")]
+[DataContract]
 internal sealed class ExtendedAmountType
 {
-    [DataMember(Name = "amount")]
-    public double Amount { get; set; }
+    private double _amount;
 
-    [DataMember(Name = "name")]
+    [DataMember(Name = "amount", EmitDefaultValue = false)]
+    public double Amount 
+    { 
+        get => _amount;
+        set => _amount = AmountHelper.AdjustAmount(value);
+    }
+
+    [DataMember(Name = "name", EmitDefaultValue = false)]
     public string Name { get; set; } = "";
 
-    [DataMember(Name = "description")]
+    [DataMember(Name = "description", EmitDefaultValue = false)]
     public string Description { get; set; } = "";
 }
-
-

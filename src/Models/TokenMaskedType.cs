@@ -2,7 +2,7 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "tokenMaskedType")]
+[DataContract]
 internal sealed class TokenMaskedType
 {
     [DataMember(Name = "tokenSource")]
@@ -17,5 +17,3 @@ internal sealed class TokenMaskedType
     [DataMember(Name = "tokenRequestorId")]
     public string TokenRequestorId { get; set; } = "";
 }
-
-

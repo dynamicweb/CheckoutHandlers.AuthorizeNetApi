@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<VersionPrefix>10.22.1</VersionPrefix>
+		<VersionPrefix>10.23.0</VersionPrefix>
 		<AssemblyVersion>1.0.0.0</AssemblyVersion>
 		<Title>Authorize.Net API</Title>
 		<Description>Authorize.Net API Checkout Handler</Description>
@@ -25,9 +25,9 @@
 		<WarningsAsErrors>nullable</WarningsAsErrors>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="Dynamicweb" Version="10.22.7" />
-		<PackageReference Include="Dynamicweb.Core" Version="10.22.7" />
-		<PackageReference Include="Dynamicweb.Ecommerce" Version="10.22.7" />
+		<PackageReference Include="Dynamicweb" Version="10.23.7" />
+		<PackageReference Include="Dynamicweb.Core" Version="10.23.7" />
+		<PackageReference Include="Dynamicweb.Ecommerce" Version="10.23.7" />
 		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
 	</ItemGroup>
 </Project>

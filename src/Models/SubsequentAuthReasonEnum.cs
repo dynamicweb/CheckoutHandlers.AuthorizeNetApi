@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<SubsequentAuthReasonEnum>))]
-[DataContract(Name = "subsequentAuthReasonEnum")]
+[DataContract]
 internal enum SubsequentAuthReasonEnum
 {
     [EnumMember(Value = "resubmission")]
@@ -20,4 +20,3 @@ internal enum SubsequentAuthReasonEnum
     [EnumMember(Value = "noShow")]
     NoShow
 }
-

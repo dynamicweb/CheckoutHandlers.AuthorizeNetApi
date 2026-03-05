@@ -2,14 +2,12 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "subscriptionPaymentType")]
+[DataContract]
 internal sealed class SubscriptionPaymentType
 {
-    [DataMember(Name = "id")]
+    [DataMember(Name = "id", EmitDefaultValue = false)]
     public int Id { get; set; }
 
-    [DataMember(Name = "payNum")]
+    [DataMember(Name = "payNum", EmitDefaultValue = false)]
     public int PayNum { get; set; }
 }
-
-

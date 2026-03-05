@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<FdsFilterActionEnum>))]
-[DataContract(Name = "FDSFilterActionEnum")]
+[DataContract]
 internal enum FdsFilterActionEnum
 {
     [EnumMember(Value = "reject")]
@@ -23,5 +23,3 @@ internal enum FdsFilterActionEnum
     [EnumMember(Value = "report")]
     Report
 }
-
-

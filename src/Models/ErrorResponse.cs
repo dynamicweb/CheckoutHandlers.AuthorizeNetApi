@@ -8,9 +8,9 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 [DataContract]
 internal sealed class ErrorResponse
 {
-    [DataMember(Name = "refId")]
+    [DataMember(Name = "refId", EmitDefaultValue = false)]
     public string? RefId { get; set; }
 
-    [DataMember(Name = "messages")]
+    [DataMember(Name = "messages", EmitDefaultValue = false)]
     public Messages? Messages { get; set; }
 }

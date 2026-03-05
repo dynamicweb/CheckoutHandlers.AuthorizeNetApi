@@ -2,14 +2,12 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "orderExType")]
+[DataContract]
 internal sealed class OrderExType
 {
-    [DataMember(Name = "invoiceNumber")]
+    [DataMember(Name = "invoiceNumber", EmitDefaultValue = false)]
     public string InvoiceNumber { get; set; } = "";
 
-    [DataMember(Name = "purchaseOrderNumber")]
+    [DataMember(Name = "purchaseOrderNumber", EmitDefaultValue = false)]
     public string PurchaseOrderNumber { get; set; } = "";
 }
-
-

@@ -2,14 +2,12 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "emvResponse")]
+[DataContract]
 internal sealed class EmvResponse
 {
-    [DataMember(Name = "tlvData")]
+    [DataMember(Name = "tlvData", EmitDefaultValue = false)]
     public string TlvData { get; set; } = "";
 
-    [DataMember(Name = "tags")]
+    [DataMember(Name = "tags", EmitDefaultValue = false)]
     public EmvTag Tags { get; set; } = new();
 }
-
-

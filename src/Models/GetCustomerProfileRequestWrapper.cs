@@ -8,5 +8,3 @@ internal sealed class GetCustomerProfileRequestWrapper
     [DataMember(Name = "getCustomerProfileRequest")]
     public GetCustomerProfileRequest GetCustomerProfileRequest { get; set; } = new();
 }
-
-

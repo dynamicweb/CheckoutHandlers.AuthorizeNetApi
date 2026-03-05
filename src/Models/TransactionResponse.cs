@@ -3,83 +3,81 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "transactionResponse")]
+[DataContract]
 internal sealed class TransactionResponse
 {
-    [DataMember(Name = "responseCode")]
+    [DataMember(Name = "responseCode", EmitDefaultValue = false)]
     public string ResponseCode { get; set; } = "";
 
-    [DataMember(Name = "rawResponseCode")]
+    [DataMember(Name = "rawResponseCode", EmitDefaultValue = false)]
     public string RawResponseCode { get; set; } = "";
 
-    [DataMember(Name = "authCode")]
+    [DataMember(Name = "authCode", EmitDefaultValue = false)]
     public string AuthCode { get; set; } = "";
 
-    [DataMember(Name = "avsResultCode")]
+    [DataMember(Name = "avsResultCode", EmitDefaultValue = false)]
     public string AvsResultCode { get; set; } = "";
 
-    [DataMember(Name = "cvvResultCode")]
+    [DataMember(Name = "cvvResultCode", EmitDefaultValue = false)]
     public string CvvResultCode { get; set; } = "";
 
-    [DataMember(Name = "cavvResultCode")]
+    [DataMember(Name = "cavvResultCode", EmitDefaultValue = false)]
     public string CavvResultCode { get; set; } = "";
 
-    [DataMember(Name = "transId")]
+    [DataMember(Name = "transId", EmitDefaultValue = false)]
     public string TransId { get; set; } = "";
 
-    [DataMember(Name = "refTransID")]
+    [DataMember(Name = "refTransID", EmitDefaultValue = false)]
     public string RefTransId { get; set; } = "";
 
-    [DataMember(Name = "transHash")]
+    [DataMember(Name = "transHash", EmitDefaultValue = false)]
     public string TransHash { get; set; } = "";
 
-    [DataMember(Name = "testRequest")]
+    [DataMember(Name = "testRequest", EmitDefaultValue = false)]
     public string TestRequest { get; set; } = "";
 
-    [DataMember(Name = "accountNumber")]
+    [DataMember(Name = "accountNumber", EmitDefaultValue = false)]
     public string AccountNumber { get; set; } = "";
 
-    [DataMember(Name = "entryMode")]
+    [DataMember(Name = "entryMode", EmitDefaultValue = false)]
     public string EntryMode { get; set; } = "";
 
-    [DataMember(Name = "accountType")]
+    [DataMember(Name = "accountType", EmitDefaultValue = false)]
     public string AccountType { get; set; } = "";
 
-    [DataMember(Name = "splitTenderId")]
+    [DataMember(Name = "splitTenderId", EmitDefaultValue = false)]
     public string SplitTenderId { get; set; } = "";
 
-    [DataMember(Name = "prePaidCard")]
+    [DataMember(Name = "prePaidCard", EmitDefaultValue = false)]
     public PrePaidCard PrePaidCard { get; set; } = new();
 
-    [DataMember(Name = "messages")]
+    [DataMember(Name = "messages", EmitDefaultValue = false)]
     public IEnumerable<Message> Messages { get; set; } = [];
 
-    [DataMember(Name = "errors")]
+    [DataMember(Name = "errors", EmitDefaultValue = false)]
     public IEnumerable<Error> Errors { get; set; } = [];
 
-    [DataMember(Name = "splitTenderPayments")]
+    [DataMember(Name = "splitTenderPayments", EmitDefaultValue = false)]
     public IEnumerable<SplitTenderPayment> SplitTenderPayments { get; set; } = [];
 
-    [DataMember(Name = "userFields")]
+    [DataMember(Name = "userFields", EmitDefaultValue = false)]
     public IEnumerable<UserField> UserFields { get; set; } = [];
 
-    [DataMember(Name = "shipTo")]
+    [DataMember(Name = "shipTo", EmitDefaultValue = false)]
     public NameAndAddressType ShipTo { get; set; } = new();
 
-    [DataMember(Name = "secureAcceptance")]
+    [DataMember(Name = "secureAcceptance", EmitDefaultValue = false)]
     public SecureAcceptance SecureAcceptance { get; set; } = new();
 
-    [DataMember(Name = "emvResponse")]
+    [DataMember(Name = "emvResponse", EmitDefaultValue = false)]
     public EmvResponse EmvResponse { get; set; } = new();
 
-    [DataMember(Name = "transHashSha2")]
+    [DataMember(Name = "transHashSha2", EmitDefaultValue = false)]
     public string TransHashSha2 { get; set; } = "";
 
-    [DataMember(Name = "profile")]
+    [DataMember(Name = "profile", EmitDefaultValue = false)]
     public CustomerProfileIdType Profile { get; set; } = new();
 
-    [DataMember(Name = "networkTransId")]
+    [DataMember(Name = "networkTransId", EmitDefaultValue = false)]
     public string NetworkTransId { get; set; } = "";
 }
-
-

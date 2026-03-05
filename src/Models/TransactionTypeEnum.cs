@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<TransactionTypeEnum>))]
-[DataContract(Name = "transactionTypeEnum")]
+[DataContract]
 internal enum TransactionTypeEnum
 {
     [EnumMember(Value = "authOnlyTransaction")]
@@ -35,5 +35,3 @@ internal enum TransactionTypeEnum
     [EnumMember(Value = "authCaptureContinueTransaction")]
     AuthCaptureContinueTransaction
 }
-
-

@@ -1,7 +1,10 @@
 using Dynamicweb.Core;
+using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Constants;
+using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
 using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 using Dynamicweb.Ecommerce.Orders;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Services;
@@ -163,7 +166,7 @@ internal sealed class AuthorizeNetService : IDisposable
         var request = new GetTransactionDetailsRequest
         {
             MerchantAuthentication = GetMerchantAuthentication(),
-            TransrefId = transactionId,
+            TransId = transactionId,
         };
 
         var wrapper = new GetTransactionDetailsRequestWrapper
@@ -219,7 +222,20 @@ internal sealed class AuthorizeNetService : IDisposable
             GetCustomerProfileRequest = getProfileRequest
         };
 
-        var response = _httpService.Post<GetCustomerProfileResponse>(Converter.Serialize(wrapper));
+        GetCustomerProfileResponse? response = null;
+
+        try
+        {
+            response = _httpService.Post<GetCustomerProfileResponse>(Converter.Serialize(wrapper));
+        }
+        catch (Exception ex)
+        {
+            string createDecision = tryCreate 
+                ? "Will attempt to create new profile." 
+                : string.Empty;
+
+            _logger.LogError(ex, "Failed to get customer profile. {0} Error message: {1}", createDecision, ex.Message);
+        }
 
         if (response?.Profile is not null &&
             Enum.TryParse(response?.Messages?.ResultCode, true, out MessageTypeEnum resultCode) &&
@@ -228,29 +244,29 @@ internal sealed class AuthorizeNetService : IDisposable
             return response.Profile;
         }
 
-        if (tryCreate)
+        if (!tryCreate)
+            return null;
+            
+        var createProfileRequest = new CreateCustomerProfileRequest
         {
-            var createProfileRequest = new CreateCustomerProfileRequest
+            MerchantAuthentication = GetMerchantAuthentication(),
+            Profile = new CustomerProfileType { MerchantCustomerId = userId.ToString() },
+        };
+
+        var createWrapper = new CreateCustomerProfileRequestWrapper
+        {
+            CreateCustomerProfileRequest = createProfileRequest
+        };
+
+        var createResponse = _httpService.Post<CreateCustomerProfileResponse>(Converter.Serialize(createWrapper));
+
+        if (Enum.TryParse(createResponse?.Messages?.ResultCode, true, out MessageTypeEnum code) && code is MessageTypeEnum.Ok)
+        {
+            return new CustomerProfileMaskedType
             {
-                MerchantAuthentication = GetMerchantAuthentication(),
-                Profile = new CustomerProfileType { MerchantCustomerId = userId.ToString() },
+                CustomerProfileId = createResponse?.CustomerProfileId ?? ""
             };
-
-            var createWrapper = new CreateCustomerProfileRequestWrapper
-            {
-                CreateCustomerProfileRequest = createProfileRequest
-            };
-
-            var createResponse = _httpService.Post<CreateCustomerProfileResponse>(Converter.Serialize(createWrapper));
-
-            if (Enum.TryParse(createResponse?.Messages?.ResultCode, true, out MessageTypeEnum code) && code is MessageTypeEnum.Ok)
-            {
-                return new CustomerProfileMaskedType
-                {
-                    CustomerProfileId = createResponse?.CustomerProfileId ?? ""
-                };
-            }
-        }
+        }      
 
         return null;
     }
@@ -352,4 +368,272 @@ internal sealed class AuthorizeNetService : IDisposable
         Name = _apiLoginId,
         TransactionKey = _transactionKey
     };
+
+    #region Webhook Management
+
+    /// <summary>
+    /// Creates a new webhook subscription
+    /// </summary>
+    /// <param name="request">Webhook registration request</param>
+    /// <remarks>
+    /// See: https://developer.authorize.net/api/reference/features/webhooks.html#API_Calls
+    /// </remarks>
+    public WebhookResponse CreateWebhook(WebhookRequest request)
+    {
+        try
+        {
+            _logger.LogInfo("[WEBHOOK] Creating webhook for URL: {0}", request.Url);
+
+            string endpoint = WebhookEndpoints.Base;
+            string jsonRequest = Converter.SerializeCompact(request);
+
+            var response = _httpService.Post<WebhookResponse>(endpoint, jsonRequest, GetBasicAuthHeaders());
+            if (response is not null)
+            {
+                _logger.LogInfo("[WEBHOOK] Successfully created webhook ID: {0}", response.WebhookId);
+                return response;
+            }
+
+            throw new InvalidOperationException("Failed to create webhook - no response received");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[WEBHOOK] Failed to create webhook: {0}", ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Gets list of all webhooks for the merchant account
+    /// </summary>
+    /// See: https://developer.authorize.net/api/reference/features/webhooks.html#API_Calls
+    public WebhookListResponse GetWebhooks()
+    {
+        try
+        {
+            _logger.LogInfo("[WEBHOOK] Retrieving webhook list");
+
+            string endpoint = WebhookEndpoints.Base;
+            var webhooks = _httpService.Get<WebhookResponse[]>(endpoint, GetBasicAuthHeaders());
+
+            return new WebhookListResponse
+            {
+                Webhooks = webhooks ?? []
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[WEBHOOK] Failed to get webhooks: {0}", ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Gets details of a specific webhook
+    /// </summary>
+    /// <param name="webhookId">Webhook ID to retrieve</param>
+    /// See: https://developer.authorize.net/api/reference/features/webhooks.html#API_Calls
+    public WebhookResponse? GetWebhook(string webhookId)
+    {
+        try
+        {
+            _logger.LogInfo("[WEBHOOK] Retrieving webhook: {0}", webhookId);
+
+            string endpoint = WebhookEndpoints.GetSpecific(webhookId);
+            return _httpService.Get<WebhookResponse>(endpoint, GetBasicAuthHeaders());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[WEBHOOK] Failed to get webhook {0}: {1}", webhookId, ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Updates an existing webhook
+    /// </summary>
+    /// <param name="webhookId">Webhook ID to update</param>
+    /// <param name="request">Updated webhook details</param>
+    /// <remarks>
+    /// See: https://developer.authorize.net/api/reference/features/webhooks.html#API_Calls
+    /// </remarks>
+    public WebhookResponse? UpdateWebhook(string webhookId, WebhookRequest request)
+    {
+        try
+        {
+            _logger.LogInfo("[WEBHOOK] Updating webhook: {0}", webhookId);
+
+            string endpoint = WebhookEndpoints.GetSpecific(webhookId);
+            string jsonRequest = Converter.SerializeCompact(request);
+
+            return _httpService.Put<WebhookResponse>(endpoint, jsonRequest, GetBasicAuthHeaders());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[WEBHOOK] Failed to update webhook {0}: {1}", webhookId, ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Deletes a webhook
+    /// </summary>
+    /// <param name="webhookId">Webhook ID to delete</param>
+    /// <remarks>
+    /// See: https://developer.authorize.net/api/reference/features/webhooks.html#API_Calls
+    /// </remarks>
+    public void DeleteWebhook(string webhookId)
+    {
+        try
+        {
+            _logger.LogInfo("[WEBHOOK] Deleting webhook: {0}", webhookId);
+
+            string endpoint = WebhookEndpoints.GetSpecific(webhookId);
+            _httpService.Delete(endpoint, GetBasicAuthHeaders());
+
+            _logger.LogInfo("[WEBHOOK] Successfully deleted webhook: {0}", webhookId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[WEBHOOK] Failed to delete webhook {0}: {1}", webhookId, ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Gets all available event types for webhooks
+    /// </summary>
+    /// <returns>Array of available event types</returns>
+    /// <remarks>
+    /// See: https://developer.authorize.net/api/reference/features/webhooks.html#API_Calls
+    /// </remarks>
+    public EventTypeResponse[] GetEventTypes()
+    {
+        try
+        {
+            _logger.LogInfo("[WEBHOOK] Retrieving available event types");
+
+            string endpoint = WebhookEndpoints.EventTypes;
+            return _httpService.Get<EventTypeResponse[]>(endpoint, GetBasicAuthHeaders()) ?? [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[WEBHOOK] Failed to get event types: {0}", ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Ensures all required webhooks are registered for the specified URL
+    /// </summary>
+    /// <param name="webhookUrl">The webhook endpoint URL</param>
+    /// <param name="forceRegistration">Whether to force re-registration even if webhooks exist</param>
+    /// <returns>Webhook registration response or null if no action needed</returns>
+    public WebhookResponse? EnsureWebhooksRegistered(string webhookUrl, bool forceRegistration)
+    {
+        try
+        {
+            _logger.LogInfo("[WEBHOOK] Ensuring webhooks are registered for URL: {0}", webhookUrl);
+
+            // Get current webhooks
+            WebhookListResponse existingWebhooks = GetWebhooks();
+            List<WebhookResponse> ourWebhooks = existingWebhooks.Webhooks
+                .Where(w => webhookUrl.Equals(w.Url, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            WebhookRegistrationResult registrationResult = DetermineWebhookAction(ourWebhooks, forceRegistration);
+
+            _logger.LogInfo("[WEBHOOK] Registration check result: RequiresRegistration={0}, Reason={1}", 
+                registrationResult.RequiresRegistration, registrationResult.Reason);
+
+            if (!registrationResult.RequiresRegistration)
+                return null;
+
+            // Delete existing webhooks for this URL
+            foreach (WebhookResponse webhook in ourWebhooks)
+            {
+                _logger.LogInfo("[WEBHOOK] Cleaning up existing webhook: {0}", webhook.WebhookId);
+                DeleteWebhook(webhook.WebhookId);
+            }
+
+            // Create new webhook with all required event types
+            var request = new WebhookRequest
+            {
+                Name = "AuthorizeNetWebhook",
+                Url = webhookUrl,
+                EventTypes = GetRequiredPaymentEventTypes(),
+                Status = "active"
+            };
+
+            WebhookResponse newWebhook = CreateWebhook(request);
+            _logger.LogInfo("[WEBHOOK] Successfully registered new webhook with ID: {0}", newWebhook.WebhookId);
+
+            return newWebhook;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[WEBHOOK] Failed to ensure webhooks registration: {0}", ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Gets the required payment event types for Dynamicweb integration
+    /// </summary>
+    /// <returns>Array of required event type names</returns>
+    private static string[] GetRequiredPaymentEventTypes()
+    {
+        return
+        [
+            "net.authorize.payment.authorization.created",
+            "net.authorize.payment.authcapture.created", 
+            "net.authorize.payment.capture.created",
+            "net.authorize.payment.refund.created",
+            "net.authorize.payment.priorAuthCapture.created",
+            "net.authorize.payment.void.created"
+        ];
+    }
+
+    /// <summary>
+    /// Determines if webhook registration is needed based on current state
+    /// </summary>
+    private WebhookRegistrationResult DetermineWebhookAction(List<WebhookResponse> existingWebhooks, bool forceRegistration)
+    {
+        if (forceRegistration)
+            return new WebhookRegistrationResult(true, "Force re-registration is enabled");
+
+        if (existingWebhooks.Count == 0)
+            return new WebhookRegistrationResult(true, "No existing webhooks found for this URL");
+
+        if (existingWebhooks.Count > 1)
+            return new WebhookRegistrationResult(true, "Multiple webhooks found - consolidating into one");
+
+        // Check if the single webhook has all required event types
+        WebhookResponse webhook = existingWebhooks.First();
+        string[] requiredEvents = GetRequiredPaymentEventTypes();
+        var registeredEvents = new HashSet<string>(webhook.EventTypes ?? [], StringComparer.OrdinalIgnoreCase);
+        List<string> missingEvents = requiredEvents.Where(e => !registeredEvents.Contains(e)).ToList();
+
+        if (missingEvents.Count > 0)
+            return new WebhookRegistrationResult(true, $"Missing required events: {string.Join(", ", missingEvents)}");
+
+        if (!webhook.Status.Equals("active", StringComparison.OrdinalIgnoreCase))
+            return new WebhookRegistrationResult(true, "Existing webhook is not active");
+
+        return new WebhookRegistrationResult(false, "All required webhooks are properly configured");
+    }
+
+    /// <summary>
+    /// Gets headers for Basic Authentication required by Webhooks API
+    /// </summary>
+    private Dictionary<string, string> GetBasicAuthHeaders()
+    {
+        string credentials = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{_apiLoginId}:{_transactionKey}"));
+        return new Dictionary<string, string>
+        {
+            ["Authorization"] = $"Basic {credentials}",
+        };
+    }
+
+    #endregion
 }

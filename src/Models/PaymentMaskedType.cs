@@ -2,17 +2,15 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "paymentMaskedType")]
+[DataContract]
 internal sealed class PaymentMaskedType
 {
-    [DataMember(Name = "creditCard")]
+    [DataMember(Name = "creditCard", EmitDefaultValue = false)]
     public CreditCardMaskedType CreditCard { get; set; } = new();
 
-    [DataMember(Name = "bankAccount")]
+    [DataMember(Name = "bankAccount", EmitDefaultValue = false)]
     public BankAccountMaskedType BankAccount { get; set; } = new();
 
-    [DataMember(Name = "tokenInformation")]
+    [DataMember(Name = "tokenInformation", EmitDefaultValue = false)]
     public TokenMaskedType TokenInformation { get; set; } = new();
 }
-
-

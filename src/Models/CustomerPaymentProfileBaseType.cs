@@ -2,14 +2,12 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "customerPaymentProfileBaseType")]
+[DataContract]
 internal sealed class CustomerPaymentProfileBaseType
 {
-    [DataMember(Name = "customerType")]
-    public CustomerTypeEnum CustomerType { get; set; }
+    [DataMember(Name = "customerType", EmitDefaultValue = false)]
+    public CustomerTypeEnum? CustomerType { get; set; }
 
-    [DataMember(Name = "billTo")]
+    [DataMember(Name = "billTo", EmitDefaultValue = false)]
     public CustomerAddressType BillTo { get; set; } = new();
 }
-
-

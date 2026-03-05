@@ -5,5 +5,3 @@ internal enum TransactionType
     AuthCaptureTransaction,
     AuthOnlyTransaction
 }
-
-

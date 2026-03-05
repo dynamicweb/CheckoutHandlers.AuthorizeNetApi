@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<CardTypeEnum>))]
-[DataContract(Name = "cardTypeEnum")]
+[DataContract]
 internal enum CardTypeEnum
 {
     [EnumMember(Value = "Visa")]
@@ -26,5 +26,3 @@ internal enum CardTypeEnum
     [EnumMember(Value = "DinersClub")]
     DinersClub
 }
-
-

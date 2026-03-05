@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<MessageTypeEnum>))]
-[DataContract(Name = "messageTypeEnum")]
+[DataContract]
 internal enum MessageTypeEnum
 {
     [EnumMember(Value = "Ok")]
@@ -14,5 +14,3 @@ internal enum MessageTypeEnum
     [EnumMember(Value = "Error")]
     Error
 }
-
-

@@ -2,14 +2,12 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "FDSFilter")]
+[DataContract]
 internal sealed class FDSFilter
 {
-    [DataMember(Name = "name")]
+    [DataMember(Name = "name", EmitDefaultValue = false)]
     public string Name { get; set; } = "";
 
-    [DataMember(Name = "action")]
-    public FdsFilterActionEnum Action { get; set; }
+    [DataMember(Name = "action", EmitDefaultValue = false)]
+    public FdsFilterActionEnum? Action { get; set; }
 }
-
-

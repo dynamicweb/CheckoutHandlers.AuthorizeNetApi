@@ -3,11 +3,9 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "lineItems")]
+[DataContract]
 internal sealed class LineItems
 {
-    [DataMember(Name = "lineItem")]
+    [DataMember(Name = "lineItem", EmitDefaultValue = false)]
     public IEnumerable<LineItem> LineItem { get; set; } = [];
 }
-
-

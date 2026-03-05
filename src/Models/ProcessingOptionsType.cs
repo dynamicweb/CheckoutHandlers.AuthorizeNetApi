@@ -2,13 +2,12 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "processingOptionsType")]
+[DataContract]
 internal sealed class ProcessingOptionsType
 {
-    [DataMember(Name = "isSubsequentAuth")]
+    [DataMember(Name = "isSubsequentAuth", EmitDefaultValue = false)]
     public bool IsSubsequentAuth { get; set; }
 
-    [DataMember(Name = "isStoredCredentials")]
+    [DataMember(Name = "isStoredCredentials", EmitDefaultValue = false)]
     public bool IsStoredCredentials { get; set; }
 }
-

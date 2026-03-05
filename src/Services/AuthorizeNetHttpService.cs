@@ -4,6 +4,7 @@ using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Exceptions;
 using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
 using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -48,6 +49,43 @@ internal sealed class AuthorizeNetHttpService : IDisposable
 
     public T? Post<T>(string jsonObject)
     {
+        return SendRequest<T>(HttpMethod.Post, _url, jsonObject, null);
+    }
+
+    /// <summary>
+    /// Sends a POST request to specified endpoint with custom headers
+    /// </summary>
+    public T? Post<T>(string endpoint, string jsonObject, Dictionary<string, string>? headers)
+    {
+        return SendRequest<T>(HttpMethod.Post, endpoint, jsonObject, headers);
+    }
+
+    /// <summary>
+    /// Sends a GET request to specified endpoint with custom headers
+    /// </summary>
+    public T? Get<T>(string endpoint, Dictionary<string, string>? headers)
+    {
+        return SendRequest<T>(HttpMethod.Get, endpoint, null, headers);
+    }
+
+    /// <summary>
+    /// Sends a PUT request to specified endpoint with custom headers
+    /// </summary>
+    public T? Put<T>(string endpoint, string jsonObject, Dictionary<string, string>? headers)
+    {
+        return SendRequest<T>(HttpMethod.Put, endpoint, jsonObject, headers);
+    }
+
+    /// <summary>
+    /// Sends a DELETE request to specified endpoint with custom headers
+    /// </summary>
+    public void Delete(string endpoint, Dictionary<string, string>? headers)
+    {
+        SendRequest<object>(HttpMethod.Delete, endpoint, null, headers);
+    }
+
+    private T? SendRequest<T>(HttpMethod method, string endpoint, string? jsonObject, Dictionary<string, string>? headers)
+    {
         var logger = _logger is not null
             ? new AuthorizeNetRequestLogger(_logger)
             : new AuthorizeNetRequestLogger(_debugEnabled);
@@ -56,15 +94,25 @@ internal sealed class AuthorizeNetHttpService : IDisposable
 
         try
         {
-            var requestMessage = new HttpRequestMessage(HttpMethod.Post, _url)
+            var requestMessage = new HttpRequestMessage(method, endpoint);
+
+            if (jsonObject is not null)
             {
-                Content = new StringContent(jsonObject)
-            };
+                requestMessage.Content = new StringContent(jsonObject);
+                requestMessage.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/json");
+            }
 
-            requestMessage.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/json");
-            logger.LogRequest(requestMessage, jsonObject);
+            // Add custom headers
+            if (headers is not null)
+            {
+                foreach ((string name, string value) in headers)                
+                    requestMessage.Headers.Add(name, value);                
+            }
 
-            using (HttpResponseMessage response = _httpClient.SendAsync(requestMessage).GetAwaiter().GetResult())
+            logger.LogRequest(requestMessage, jsonObject ?? "");
+
+            using (HttpResponseMessage response = _httpClient.SendAsync(requestMessage)
+                .GetAwaiter().GetResult())
             {
                 responseText = response.Content
                     .ReadAsStringAsync()
@@ -72,6 +120,15 @@ internal sealed class AuthorizeNetHttpService : IDisposable
                     .GetResult();
 
                 logger.LogResponse(response, responseText);
+
+                // For DELETE requests, check status code rather than parsing content
+                if (method == HttpMethod.Delete)
+                {
+                    if (!response.IsSuccessStatusCode)
+                        throw new AuthorizeNetApiException($"DELETE request failed with status: {response.StatusCode}");
+
+                    return default(T);
+                }
 
                 // Check if response is an error before deserializing to T
                 ErrorResponse? errorResponse = TryParseError(responseText);

@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<NotificationEventType>))]
-[DataContract(Name = "notificationEventType")]
+[DataContract]
 public enum NotificationEventType
 {
     /// <summary>
@@ -44,5 +44,3 @@ public enum NotificationEventType
     [EnumMember(Value = "VoidCreated")]
     VoidCreated,
 }
-
-

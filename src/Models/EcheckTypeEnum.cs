@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<EcheckTypeEnum>))]
-[DataContract(Name = "echeckTypeEnum")]
+[DataContract]
 internal enum EcheckTypeEnum
 {
     [EnumMember(Value = "PPD")]
@@ -26,5 +26,3 @@ internal enum EcheckTypeEnum
     [EnumMember(Value = "BOC")]
     BOC
 }
-
-

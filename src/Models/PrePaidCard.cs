@@ -2,17 +2,15 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "prePaidCard")]
+[DataContract]
 internal sealed class PrePaidCard
 {
-    [DataMember(Name = "requestedAmount")]
+    [DataMember(Name = "requestedAmount", EmitDefaultValue = false)]
     public string RequestedAmount { get; set; } = "";
 
-    [DataMember(Name = "approvedAmount")]
+    [DataMember(Name = "approvedAmount", EmitDefaultValue = false)]
     public string ApprovedAmount { get; set; } = "";
 
-    [DataMember(Name = "balanceOnCard")]
+    [DataMember(Name = "balanceOnCard", EmitDefaultValue = false)]
     public string BalanceOnCard { get; set; } = "";
 }
-
-

@@ -5,10 +5,9 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 [DataContract]
 internal sealed class HostedPaymentReturnOptions
 {
-    [DataMember(Name = "url")]
+    [DataMember(Name = "url", EmitDefaultValue = false)]
     public string Url { get; set; } = "";
 
-    [DataMember(Name = "cancelUrl")]
+    [DataMember(Name = "cancelUrl", EmitDefaultValue = false)]
     public string CancelUrl { get; set; } = "";
 }
-

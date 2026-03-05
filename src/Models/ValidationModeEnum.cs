@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<ValidationModeEnum>))]
-[DataContract(Name = "validationModeEnum")]
+[DataContract]
 internal enum ValidationModeEnum
 {
     [EnumMember(Value = "none")]
@@ -20,5 +20,3 @@ internal enum ValidationModeEnum
     [EnumMember(Value = "oldLiveMode")]
     OldLiveMode
 }
-
-

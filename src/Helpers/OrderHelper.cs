@@ -23,4 +23,6 @@ internal static class OrderHelper
         if (!string.IsNullOrEmpty(transactionId) && !transactionId.Equals(order.TransactionNumber, System.StringComparison.OrdinalIgnoreCase))
             order.TransactionNumber = transactionId;
     }
+
+    public static double GetOrderAmount(Order order) => Ecommerce.Services.Currencies.Round(order.Currency, order.Price.Price);
 }

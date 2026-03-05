@@ -2,7 +2,7 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "merchantAuthenticationType")]
+[DataContract]
 internal sealed class MerchantAuthenticationType
 {
     [DataMember(Name = "name")]
@@ -11,5 +11,3 @@ internal sealed class MerchantAuthenticationType
     [DataMember(Name = "transactionKey")]
     public string TransactionKey { get; set; } = "";
 }
-
-

@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<SettlementStateEnum>))]
-[DataContract(Name = "settlementStateEnum")]
+[DataContract]
 internal enum SettlementStateEnum
 {
     [EnumMember(Value = "settledSuccessfully")]
@@ -17,5 +17,3 @@ internal enum SettlementStateEnum
     [EnumMember(Value = "pendingSettlement")]
     PendingSettlement
 }
-
-

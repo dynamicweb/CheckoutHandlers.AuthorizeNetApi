@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<SettingEnum>))]
-[DataContract(Name = "settingEnum")]
+[DataContract]
 internal enum SettingEnum
 {
     [EnumMember(Value = "emailCustomer")]
@@ -104,5 +104,3 @@ internal enum SettingEnum
     [EnumMember(Value = "hostedPaymentVisaCheckoutOptions")]
     HostedPaymentVisaCheckoutOptions //string. Used by getHostedPaymentPage method to accept VisaCheckout configuration.
 }
-
-

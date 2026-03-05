@@ -2,14 +2,12 @@ using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
-[DataContract(Name = "createTransactionResponse")]
+[DataContract]
 internal sealed class CreateTransactionResponse
 {
     [DataMember(Name = "transactionResponse")]
     public TransactionResponse TransactionResponse { get; set; } = new();
 
-    [DataMember(Name = "messages")]
+    [DataMember(Name = "messages", EmitDefaultValue = false)]
     public MessagesType Messages { get; set; } = new();
 }
-
-

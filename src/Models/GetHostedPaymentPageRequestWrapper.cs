@@ -8,4 +8,3 @@ internal sealed class GetHostedPaymentPageRequestWrapper
     [DataMember(Name = "getHostedPaymentPageRequest")]
     public GetHostedPaymentPageRequest GetHostedPaymentPageRequest { get; set; } = new();
 }
-
