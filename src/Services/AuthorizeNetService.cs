@@ -310,7 +310,7 @@ internal sealed class AuthorizeNetService : IDisposable
         };
         var response = _httpService.Post<CreateCustomerProfileResponse>(Converter.Serialize(wrapper));
 
-        return response?.CustomerPaymentProfileIdList.FirstOrDefault() ?? string.Empty;
+        return response?.CustomerPaymentProfileIdList?.FirstOrDefault() ?? string.Empty;
     }
 
     /// <summary>
@@ -382,7 +382,7 @@ internal sealed class AuthorizeNetService : IDisposable
     {
         try
         {
-            _logger.LogInfo("[WEBHOOK] Creating webhook for URL: {0}", request.Url);
+            _logger.LogInfo("[WEBHOOK] Creating webhook for URL: {0}", request.Url ?? "");
 
             string endpoint = WebhookEndpoints.Base;
             string jsonRequest = Converter.SerializeCompact(request);
@@ -390,7 +390,7 @@ internal sealed class AuthorizeNetService : IDisposable
             var response = _httpService.Post<WebhookResponse>(endpoint, jsonRequest, GetBasicAuthHeaders());
             if (response is not null)
             {
-                _logger.LogInfo("[WEBHOOK] Successfully created webhook ID: {0}", response.WebhookId);
+                _logger.LogInfo("[WEBHOOK] Successfully created webhook ID: {0}", response.WebhookId ?? "");
                 return response;
             }
 
@@ -552,8 +552,8 @@ internal sealed class AuthorizeNetService : IDisposable
             // Delete existing webhooks for this URL
             foreach (WebhookResponse webhook in ourWebhooks)
             {
-                _logger.LogInfo("[WEBHOOK] Cleaning up existing webhook: {0}", webhook.WebhookId);
-                DeleteWebhook(webhook.WebhookId);
+                _logger.LogInfo("[WEBHOOK] Cleaning up existing webhook: {0}", webhook.WebhookId ?? "");
+                DeleteWebhook(webhook.WebhookId ?? "");
             }
 
             // Create new webhook with all required event types
@@ -566,7 +566,7 @@ internal sealed class AuthorizeNetService : IDisposable
             };
 
             WebhookResponse newWebhook = CreateWebhook(request);
-            _logger.LogInfo("[WEBHOOK] Successfully registered new webhook with ID: {0}", newWebhook.WebhookId);
+            _logger.LogInfo("[WEBHOOK] Successfully registered new webhook with ID: {0}", newWebhook.WebhookId ?? "");
 
             return newWebhook;
         }
@@ -617,7 +617,7 @@ internal sealed class AuthorizeNetService : IDisposable
         if (missingEvents.Count > 0)
             return new WebhookRegistrationResult(true, $"Missing required events: {string.Join(", ", missingEvents)}");
 
-        if (!webhook.Status.Equals("active", StringComparison.OrdinalIgnoreCase))
+        if (!(webhook.Status?.Equals("active", StringComparison.OrdinalIgnoreCase) ?? false))
             return new WebhookRegistrationResult(true, "Existing webhook is not active");
 
         return new WebhookRegistrationResult(false, "All required webhooks are properly configured");

@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -12,5 +12,5 @@ internal sealed class EventTypeResponse
     /// Name of the event type
     /// </summary>
     [DataMember(Name = "name", EmitDefaultValue = false)]
-    public string Name { get; set; } = "";
+    public string? Name { get; set; }
 }

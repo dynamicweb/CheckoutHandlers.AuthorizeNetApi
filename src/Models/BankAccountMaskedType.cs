@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -12,14 +12,14 @@ internal sealed class BankAccountMaskedType
     public EcheckTypeEnum? EcheckType { get; set; }
 
     [DataMember(Name = "routingNumber", EmitDefaultValue = false)]
-    public string RoutingNumber { get; set; } = "";
+    public string? RoutingNumber { get; set; }
 
     [DataMember(Name = "accountNumber", EmitDefaultValue = false)]
-    public string AccountNumber { get; set; } = "";
+    public string? AccountNumber { get; set; }
 
     [DataMember(Name = "nameOnAccount", EmitDefaultValue = false)]
-    public string NameOnAccount { get; set; } = "";
+    public string? NameOnAccount { get; set; }
 
     [DataMember(Name = "bankName", EmitDefaultValue = false)]
-    public string BankName { get; set; } = "";
+    public string? BankName { get; set; }
 }

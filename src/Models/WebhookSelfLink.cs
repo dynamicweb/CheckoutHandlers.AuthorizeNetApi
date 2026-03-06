@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -12,5 +12,5 @@ internal sealed class WebhookSelfLink
     /// HREF to the webhook resource
     /// </summary>
     [DataMember(Name = "href", EmitDefaultValue = false)]
-    public string Href { get; set; } = "";
+    public string? Href { get; set; }
 }

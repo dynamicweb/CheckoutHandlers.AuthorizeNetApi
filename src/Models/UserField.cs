@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,8 +6,8 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class UserField
 {
     [DataMember(Name = "name", EmitDefaultValue = false)]
-    public string Name { get; set; } = "";
+    public string? Name { get; set; }
 
     [DataMember(Name = "value", EmitDefaultValue = false)]
-    public string Value { get; set; } = "";
+    public string? Value { get; set; }
 }

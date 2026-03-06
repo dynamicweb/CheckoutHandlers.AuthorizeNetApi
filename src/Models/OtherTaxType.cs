@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -15,7 +15,7 @@ internal sealed class OtherTaxType
     public double AlternateTaxAmount { get; set; }
 
     [DataMember(Name = "alternateTaxId", EmitDefaultValue = false)]
-    public string AlternateTaxId { get; set; } = "";
+    public string? AlternateTaxId { get; set; }
 
     [DataMember(Name = "vatTaxRate", EmitDefaultValue = false)]
     public double VatTaxRate { get; set; }

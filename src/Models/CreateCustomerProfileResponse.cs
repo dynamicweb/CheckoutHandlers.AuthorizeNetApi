@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
@@ -7,11 +7,11 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class CreateCustomerProfileResponse
 {
     [DataMember(Name = "messages", EmitDefaultValue = false)]
-    public MessagesType Messages { get; set; } = new();
+    public MessagesType? Messages { get; set; }
 
     [DataMember(Name = "customerProfileId")]
     public string CustomerProfileId { get; set; } = "";
 
     [DataMember(Name = "customerPaymentProfileIdList", EmitDefaultValue = false)]
-    public IEnumerable<string> CustomerPaymentProfileIdList { get; set; } = [];
+    public IEnumerable<string>? CustomerPaymentProfileIdList { get; set; }
 }

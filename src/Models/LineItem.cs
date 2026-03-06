@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,13 +6,13 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class LineItem
 {
     [DataMember(Name = "itemId", EmitDefaultValue = false)]
-    public string ItemId { get; set; } = "";
+    public string? ItemId { get; set; }
 
     [DataMember(Name = "name", EmitDefaultValue = false)]
-    public string Name { get; set; } = "";
+    public string? Name { get; set; }
 
     [DataMember(Name = "description", EmitDefaultValue = false)]
-    public string Description { get; set; } = "";
+    public string? Description { get; set; }
 
     [DataMember(Name = "quantity", EmitDefaultValue = false)]
     public double Quantity { get; set; }

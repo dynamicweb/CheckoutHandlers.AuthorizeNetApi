@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -9,7 +9,7 @@ internal sealed class GetTransactionDetailsRequest
     public MerchantAuthenticationType MerchantAuthentication { get; set; } = new();
         
     [DataMember(Name = "refId", EmitDefaultValue = false)]
-    public string RefId { get; set; } = "";
+    public string? RefId { get; set; }
 
     [DataMember(Name = "transId")]
     public string TransId { get; set; } = "";

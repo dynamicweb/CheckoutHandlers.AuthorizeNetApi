@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,8 +6,8 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class GetCustomerProfileResponse
 {
     [DataMember(Name = "messages", EmitDefaultValue = false)]
-    public MessagesType Messages { get; set; } = new();
+    public MessagesType? Messages { get; set; }
 
     [DataMember(Name = "profile", EmitDefaultValue = false)]
-    public CustomerProfileMaskedType Profile { get; set; } = new();
+    public CustomerProfileMaskedType? Profile { get; set; }
 }

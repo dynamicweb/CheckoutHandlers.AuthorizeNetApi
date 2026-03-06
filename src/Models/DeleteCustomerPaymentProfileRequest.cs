@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -9,11 +9,11 @@ internal sealed class DeleteCustomerPaymentProfileRequest
     public MerchantAuthenticationType MerchantAuthentication { get; set; } = new();
 
     [DataMember(Name = "refId", EmitDefaultValue = false)]
-    public string RefId { get; set; } = "";
+    public string? RefId { get; set; }
 
     [DataMember(Name = "customerProfileId", EmitDefaultValue = false)]
-    public string CustomerProfileId { get; set; } = "";
+    public string? CustomerProfileId { get; set; }
 
     [DataMember(Name = "customerPaymentProfileId", EmitDefaultValue = false)]
-    public string CustomerPaymentProfileId { get; set; } = "";
+    public string? CustomerPaymentProfileId { get; set; }
 }

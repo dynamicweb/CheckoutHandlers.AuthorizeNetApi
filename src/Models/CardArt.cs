@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,19 +6,19 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class CardArt
 {
     [DataMember(Name = "cardBrand", EmitDefaultValue = false)]
-    public string CardBrand { get; set; } = "";
+    public string? CardBrand { get; set; }
 
     [DataMember(Name = "cardImageHeight", EmitDefaultValue = false)]
-    public string CardImageHeight { get; set; } = "";
+    public string? CardImageHeight { get; set; }
 
     [DataMember(Name = "cardImageUrl", EmitDefaultValue = false)]
-    public string CardImageUrl { get; set; } = "";
+    public string? CardImageUrl { get; set; }
 
     [DataMember(Name = "cardImageWidth", EmitDefaultValue = false)]
-    public string CardImageWidth { get; set; } = "";
+    public string? CardImageWidth { get; set; }
 
     [DataMember(Name = "cardType", EmitDefaultValue = false)]
-    public string CardType { get; set; } = "";
+    public string? CardType { get; set; }
 }
 
 

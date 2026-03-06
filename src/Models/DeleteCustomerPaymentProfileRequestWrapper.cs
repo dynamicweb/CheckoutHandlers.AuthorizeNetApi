@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,5 +6,5 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class DeleteCustomerPaymentProfileRequestWrapper
 {
     [DataMember(Name = "deleteCustomerPaymentProfileRequest", EmitDefaultValue = false)]
-    public DeleteCustomerPaymentProfileRequest DeleteCustomerPaymentProfileRequest { get; set; } = new();
+    public DeleteCustomerPaymentProfileRequest? DeleteCustomerPaymentProfileRequest { get; set; }
 }

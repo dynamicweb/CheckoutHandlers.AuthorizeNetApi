@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,8 +6,8 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class Message
 {
     [DataMember(Name = "code", EmitDefaultValue = false)]
-    public string Code { get; set; } = "";
+    public string? Code { get; set; }
 
     [DataMember(Name = "text", EmitDefaultValue = false)]
-    public string Text { get; set; } = "";
+    public string? Text { get; set; }
 }

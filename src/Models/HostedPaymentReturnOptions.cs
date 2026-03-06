@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,8 +6,8 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class HostedPaymentReturnOptions
 {
     [DataMember(Name = "url", EmitDefaultValue = false)]
-    public string Url { get; set; } = "";
+    public string? Url { get; set; }
 
     [DataMember(Name = "cancelUrl", EmitDefaultValue = false)]
-    public string CancelUrl { get; set; } = "";
+    public string? CancelUrl { get; set; }
 }

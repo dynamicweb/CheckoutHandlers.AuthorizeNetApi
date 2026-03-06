@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
@@ -19,7 +19,7 @@ internal sealed class TransactionRequestType
     }
 
     [DataMember(Name = "currencyCode", EmitDefaultValue = false)]
-    public string CurrencyCode { get; set; } = "";
+    public string? CurrencyCode { get; set; }
 
     [DataMember(Name = "payment", EmitDefaultValue = false)]
     public PaymentType? Payment { get; set; }
@@ -28,7 +28,7 @@ internal sealed class TransactionRequestType
     public CustomerProfilePaymentType? Profile { get; set; }
 
     [DataMember(Name = "refTransId", EmitDefaultValue = false)]
-    public string RefTransId { get; set; } = "";
+    public string? RefTransId { get; set; }
 
     [DataMember(Name = "order", EmitDefaultValue = false)]
     public OrderType? Order { get; set; }
@@ -46,7 +46,7 @@ internal sealed class TransactionRequestType
     public NameAndAddressType? ShipTo { get; set; }
 
     [DataMember(Name = "customerIP", EmitDefaultValue = false)]
-    public string CustomerIp { get; set; } = "";
+    public string? CustomerIp { get; set; }
 
     [DataMember(Name = "processingOptions", EmitDefaultValue = false)]
     public ProcessingOptionsType? ProcessingOptions { get; set; }

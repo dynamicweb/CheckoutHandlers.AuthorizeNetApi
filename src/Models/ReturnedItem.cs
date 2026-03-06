@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -9,14 +9,14 @@ internal sealed class ReturnedItem
     public string Id { get; set; } = "";
 
     [DataMember(Name = "dateUTC", EmitDefaultValue = false)]
-    public string DateUTC { get; set; } = "";
+    public string? DateUTC { get; set; }
 
     [DataMember(Name = "dateLocal", EmitDefaultValue = false)]
-    public string DateLocal { get; set; } = "";
+    public string? DateLocal { get; set; }
 
     [DataMember(Name = "code", EmitDefaultValue = false)]
-    public string Code { get; set; } = "";
+    public string? Code { get; set; }
 
     [DataMember(Name = "description", EmitDefaultValue = false)]
-    public string Description { get; set; } = "";
+    public string? Description { get; set; }
 }

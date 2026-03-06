@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,11 +6,11 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class PaymentEmvType
 {
     [DataMember(Name = "emvData", EmitDefaultValue = false)]
-    public string EmvData { get; set; } = "";
+    public string? EmvData { get; set; }
 
     [DataMember(Name = "emvDescriptor", EmitDefaultValue = false)]
-    public string EmvDescriptor { get; set; } = "";
+    public string? EmvDescriptor { get; set; }
 
     [DataMember(Name = "emvVersion", EmitDefaultValue = false)]
-    public string EmvVersion { get; set; } = "";
+    public string? EmvVersion { get; set; }
 }

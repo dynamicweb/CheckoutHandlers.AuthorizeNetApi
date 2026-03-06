@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -9,26 +9,26 @@ internal sealed class SplitTenderPayment
     public string TransId { get; set; } = "";
 
     [DataMember(Name = "responseCode", EmitDefaultValue = false)]
-    public string ResponseCode { get; set; } = "";
+    public string? ResponseCode { get; set; }
 
     [DataMember(Name = "responseToCustomer", EmitDefaultValue = false)]
-    public string ResponseToCustomer { get; set; } = "";
+    public string? ResponseToCustomer { get; set; }
 
     [DataMember(Name = "authCode", EmitDefaultValue = false)]
-    public string AuthCode { get; set; } = "";
+    public string? AuthCode { get; set; }
 
     [DataMember(Name = "accountNumber", EmitDefaultValue = false)]
-    public string AccountNumber { get; set; } = "";
+    public string? AccountNumber { get; set; }
 
     [DataMember(Name = "accountType", EmitDefaultValue = false)]
-    public string AccountType { get; set; } = "";
+    public string? AccountType { get; set; }
 
     [DataMember(Name = "requestedAmount", EmitDefaultValue = false)]
-    public string RequestedAmount { get; set; } = "";
+    public string? RequestedAmount { get; set; }
 
     [DataMember(Name = "approvedAmount", EmitDefaultValue = false)]
-    public string ApprovedAmount { get; set; } = "";
+    public string? ApprovedAmount { get; set; }
 
     [DataMember(Name = "balanceOnCard", EmitDefaultValue = false)]
-    public string BalanceOnCard { get; set; } = "";
+    public string? BalanceOnCard { get; set; }
 }

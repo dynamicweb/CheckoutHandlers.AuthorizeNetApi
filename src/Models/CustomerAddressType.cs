@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,32 +6,32 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class CustomerAddressType
 {
     [DataMember(Name = "firstName", EmitDefaultValue = false)]
-    public string FirstName { get; set; } = "";
+    public string? FirstName { get; set; }
 
     [DataMember(Name = "lastName", EmitDefaultValue = false)]
-    public string LastName { get; set; } = "";
+    public string? LastName { get; set; }
 
     [DataMember(Name = "company", EmitDefaultValue = false)]
-    public string Company { get; set; } = "";
+    public string? Company { get; set; }
 
     [DataMember(Name = "address", EmitDefaultValue = false)]
-    public string Address { get; set; } = "";
+    public string? Address { get; set; }
 
     [DataMember(Name = "city", EmitDefaultValue = false)]
-    public string City { get; set; } = "";
+    public string? City { get; set; }
 
     [DataMember(Name = "state", EmitDefaultValue = false)]
-    public string State { get; set; } = "";
+    public string? State { get; set; }
 
     [DataMember(Name = "zip", EmitDefaultValue = false)]
-    public string Zip { get; set; } = "";
+    public string? Zip { get; set; }
 
     [DataMember(Name = "country", EmitDefaultValue = false)]
-    public string Country { get; set; } = "";
+    public string? Country { get; set; }
 
     [DataMember(Name = "phoneNumber", EmitDefaultValue = false)]
-    public string PhoneNumber { get; set; } = "";
+    public string? PhoneNumber { get; set; }
 
     [DataMember(Name = "email", EmitDefaultValue = false)]
-    public string Email { get; set; } = "";
+    public string? Email { get; set; }
 }

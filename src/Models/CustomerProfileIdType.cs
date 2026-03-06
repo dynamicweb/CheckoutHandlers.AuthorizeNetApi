@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,11 +6,11 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class CustomerProfileIdType
 {
     [DataMember(Name = "customerProfileId", EmitDefaultValue = false)]
-    public string CustomerProfileId { get; set; } = "";
+    public string? CustomerProfileId { get; set; }
 
     [DataMember(Name = "customerPaymentProfileId", EmitDefaultValue = false)]
-    public string CustomerPaymentProfileId { get; set; } = "";
+    public string? CustomerPaymentProfileId { get; set; }
 
     [DataMember(Name = "customerAddressId", EmitDefaultValue = false)]
-    public string CustomerAddressId { get; set; } = "";
+    public string? CustomerAddressId { get; set; }
 }

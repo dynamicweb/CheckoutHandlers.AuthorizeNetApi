@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,8 +6,8 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class CustomerProfileExType
 {
     [DataMember(Name = "merchantCustomerId", EmitDefaultValue = false)]
-    public string MerchantCustomerId { get; set; } = "";
+    public string? MerchantCustomerId { get; set; }
 
     [DataMember(Name = "customerProfileId", EmitDefaultValue = false)]
-    public string CustomerProfileId { get; set; } = "";
+    public string? CustomerProfileId { get; set; }
 }

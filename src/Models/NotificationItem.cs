@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,19 +6,19 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 public partial class NotificationItem
 {
     [DataMember(Name = "notificationId", EmitDefaultValue = false)]
-    public string Id { get; set; } = "";
+    public string? Id { get; set; }
 
     [DataMember(Name = "eventType", EmitDefaultValue = false)]
-    public string EventType { get; set; } = "";
+    public string? EventType { get; set; }
 
     [DataMember(Name = "eventDate", EmitDefaultValue = false)]
-    public string EventDate { get; set; } = "";
+    public string? EventDate { get; set; }
 
     [DataMember(Name = "webhookId", EmitDefaultValue = false)]
-    public string WebhookId { get; set; } = "";
+    public string? WebhookId { get; set; }
 
     [DataMember(Name = "payload", EmitDefaultValue = false)]
-    public NotificationPayload Payload { get; set; } = new();
+    public NotificationPayload? Payload { get; set; }
 
     public NotificationEventType? GetEventType() => EventType switch
     {

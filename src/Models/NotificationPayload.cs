@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
@@ -13,10 +13,10 @@ public sealed class NotificationPayload
     public int ResponseCode { get; set; }
 
     [DataMember(Name = "authCode", EmitDefaultValue = false)]
-    public string AuthCode { get; set; } = "";
+    public string? AuthCode { get; set; }
 
     [DataMember(Name = "avsResponse", EmitDefaultValue = false)]
-    public string AvsResponse { get; set; } = "";
+    public string? AvsResponse { get; set; }
 
     private double _amount;
 
@@ -28,11 +28,11 @@ public sealed class NotificationPayload
     }
 
     [DataMember(Name = "invoiceNumber", EmitDefaultValue = false)]
-    public string OrderId { get; set; } = "";
+    public string? OrderId { get; set; }
 
     [DataMember(Name = "entityName", EmitDefaultValue = false)]
-    public string Name { get; set; } = "";
+    public string? Name { get; set; }
 
     [DataMember(Name = "eventType", EmitDefaultValue = false)]
-    public string EventType { get; set; } = "";
+    public string? EventType { get; set; }
 }

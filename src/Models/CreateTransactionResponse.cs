@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -9,5 +9,5 @@ internal sealed class CreateTransactionResponse
     public TransactionResponse TransactionResponse { get; set; } = new();
 
     [DataMember(Name = "messages", EmitDefaultValue = false)]
-    public MessagesType Messages { get; set; } = new();
+    public MessagesType? Messages { get; set; }
 }

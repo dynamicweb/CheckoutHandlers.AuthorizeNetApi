@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
@@ -7,13 +7,13 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class BatchDetailsType
 {
     [DataMember(Name = "batchId", EmitDefaultValue = false)]
-    public string BatchId { get; set; } = "";
+    public string? BatchId { get; set; }
 
     [DataMember(Name = "settlementTimeUTC", EmitDefaultValue = false)]
-    public string SettlementTimeUTC { get; set; } = "";
+    public string? SettlementTimeUTC { get; set; }
 
     [DataMember(Name = "settlementTimeLocal", EmitDefaultValue = false)]
-    public string SettlementTimeLocal { get; set; } = "";
+    public string? SettlementTimeLocal { get; set; }
 
     [DataMember(Name = "settlementState", EmitDefaultValue = false)]
     public SettlementStateEnum? SettlementState { get; set; }
@@ -22,13 +22,13 @@ internal sealed class BatchDetailsType
     public PaymentMethodEnum? PaymentMethod { get; set; }
 
     [DataMember(Name = "marketType", EmitDefaultValue = false)]
-    public string MarketType { get; set; } = "";
+    public string? MarketType { get; set; }
 
     [DataMember(Name = "product", EmitDefaultValue = false)]
-    public string Product { get; set; } = "";
+    public string? Product { get; set; }
 
     [DataMember(Name = "statistics", EmitDefaultValue = false)]
-    public IEnumerable<BatchStatisticType> Statistics { get; set; } = [];
+    public IEnumerable<BatchStatisticType>? Statistics { get; set; }
 }
 
 

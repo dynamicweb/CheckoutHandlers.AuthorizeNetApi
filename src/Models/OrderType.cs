@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,5 +6,5 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class OrderType
 {
     [DataMember(Name = "invoiceNumber", EmitDefaultValue = false)]
-    public string InvoiceNumber { get; set; } = "";
+    public string? InvoiceNumber { get; set; }
 }

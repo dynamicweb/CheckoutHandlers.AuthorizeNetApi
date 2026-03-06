@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -9,7 +9,7 @@ internal sealed class CreateCustomerProfileRequest
     public MerchantAuthenticationType MerchantAuthentication { get; set; } = new();
 
     [DataMember(Name = "refId", EmitDefaultValue = false)]
-    public string RefId { get; set; } = "";
+    public string? RefId { get; set; }
 
     [DataMember(Name = "profile")]
     public CustomerProfileType Profile { get; set; } = new();

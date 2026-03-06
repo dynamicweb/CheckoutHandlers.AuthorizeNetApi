@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
@@ -7,5 +7,5 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class LineItems
 {
     [DataMember(Name = "lineItem", EmitDefaultValue = false)]
-    public IEnumerable<LineItem> LineItem { get; set; } = [];
+    public IEnumerable<LineItem>? LineItem { get; set; }
 }

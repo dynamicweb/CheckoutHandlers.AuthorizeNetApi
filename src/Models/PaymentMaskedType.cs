@@ -1,4 +1,4 @@
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
@@ -6,11 +6,11 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 internal sealed class PaymentMaskedType
 {
     [DataMember(Name = "creditCard", EmitDefaultValue = false)]
-    public CreditCardMaskedType CreditCard { get; set; } = new();
+    public CreditCardMaskedType? CreditCard { get; set; }
 
     [DataMember(Name = "bankAccount", EmitDefaultValue = false)]
-    public BankAccountMaskedType BankAccount { get; set; } = new();
+    public BankAccountMaskedType? BankAccount { get; set; }
 
     [DataMember(Name = "tokenInformation", EmitDefaultValue = false)]
-    public TokenMaskedType TokenInformation { get; set; } = new();
+    public TokenMaskedType? TokenInformation { get; set; }
 }
