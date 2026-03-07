@@ -24,5 +24,5 @@ internal static class OrderHelper
             order.TransactionNumber = transactionId;
     }
 
-    public static double GetOrderAmount(Order order) => Ecommerce.Services.Currencies.Round(order.Currency, order.Price.Price);
+    public static double GetOrderAmount(Order order) => Ecommerce.Services.Currencies.Round(order.Currency, order.Price.Price + order.ExternalPaymentFee);
 }

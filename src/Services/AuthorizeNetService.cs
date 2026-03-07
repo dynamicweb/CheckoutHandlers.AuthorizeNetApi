@@ -1,11 +1,13 @@
 using Dynamicweb.Core;
 using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Constants;
+using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Exceptions;
 using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
 using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 using Dynamicweb.Ecommerce.Orders;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Services;
 
@@ -71,9 +73,11 @@ internal sealed class AuthorizeNetService : IDisposable
     /// For more information, see: https://developer.authorize.net/api/reference/index.html#accept-suite-get-an-accept-payment-page
     /// </remarks>
     public GetHostedPaymentPageResponse? GetHostedPaymentPage(
-        TransactionRequestType transactionRequest,
+        Order order, double orderAmount, TransactionType transactionType, bool saveCard,
         HostedPaymentSettings settings)
     {
+        TransactionRequestType transactionRequest = CreateHostedFormRequest(order, orderAmount, transactionType, saveCard);
+
         var request = new GetHostedPaymentPageRequest
         {
             MerchantAuthentication = GetMerchantAuthentication(),
@@ -91,6 +95,193 @@ internal sealed class AuthorizeNetService : IDisposable
 
         string content = Converter.Serialize(wrapper);
         return _httpService.Post<GetHostedPaymentPageResponse>(content);
+    }
+
+    /// <summary>
+    /// Creates a transaction request for payments with saved card (Customer Profile)
+    /// </summary>
+    /// <param name="order">Order to create the request for</param>
+    /// <param name="orderAmount">Amount of the order</param>
+    /// <param name="profileToCharge">Customer profile to charge</param>
+    /// <param name="transactionType">Type of transaction to perform</param>
+    /// <returns>A TransactionRequestType containing the details of the saved card payment request</returns>
+    public TransactionRequestType CreateSavedCardPaymentRequest(Order order, double orderAmount, TransactionType transactionType, CustomerProfilePaymentType profileToCharge)
+    {
+        var request = CreateBasePaymentTransactionRequest(order, orderAmount, transactionType);
+        request.Profile = profileToCharge;
+
+        // For Customer Profiles, Authorize.Net automatically handles COF indicators
+        // No need for additional processing options or subsequent auth information
+
+        return request;
+    }
+
+    /// <summary>
+    /// Creates a transaction request for direct payments with new card data
+    /// </summary>
+    /// <param name="order">Order to create the request for</param>
+    /// <param name="orderAmount">Amount of the order</param>
+    /// <param name="transactionType">Type of transaction to perform</param>
+    /// <param name="saveCard">Indicates whether the card should be saved for future use</param>
+    /// <returns>A TransactionRequestType containing the details of the direct payment request</returns>
+    public TransactionRequestType CreateDirectPaymentRequest(Order order, double orderAmount, TransactionType transactionType, bool saveCard)
+    {
+        TransactionRequestType request = CreateBasePaymentTransactionRequest(order, orderAmount, transactionType);
+
+        // Set stored credentials flag if card needs to be saved
+        if (saveCard)
+        {
+            request.ProcessingOptions = new ProcessingOptionsType
+            {
+                IsStoredCredentials = true
+            };
+        }
+
+        return request;
+    }
+
+    /// <summary>
+    /// Creates a transaction request for hosted form payments (no direct payment data)
+    /// </summary>
+    /// <param name="order">Order to create the request for</param>
+    /// <param name="orderAmount">Amount of the order</param>
+    private TransactionRequestType CreateHostedFormRequest(Order order, double orderAmount, TransactionType transactionType, bool saveCard)
+    {
+        var request = CreateBasePaymentTransactionRequest(order, orderAmount, transactionType);
+
+        // Include customer data for hosted form
+        AddCustomerData(request, order);
+
+        // Set stored credentials flag if card needs to be saved
+        if (saveCard)
+        {
+            request.ProcessingOptions = new ProcessingOptionsType
+            {
+                IsStoredCredentials = true
+            };
+        }
+
+        return request;
+    }
+
+    /// <summary>
+    /// Adds customer billing and shipping data to the request
+    /// </summary>
+    /// <param name="request">Transaction request to add customer data to</param>
+    /// <param name="order">Order containing customer data</param>
+    private void AddCustomerData(TransactionRequestType request, Order order)
+    {
+        request.BillTo = AuthorizeNetModelFactory.CreateBillAddress(order);
+        request.Customer = new CustomerDataType
+        {
+            Id = order.CustomerAccessUserId.ToString(),
+            Email = order.CustomerEmail
+        };
+
+        var shipAddress = AuthorizeNetModelFactory.CreateShipAddress(order);
+        if (!string.IsNullOrEmpty(shipAddress.Address))
+            request.ShipTo = shipAddress;
+    }
+
+
+    /// <summary>
+    /// Creates the base transaction request with common fields
+    /// </summary>
+    /// <param name="order">Order to create the request for</param>
+    /// <param name="orderAmount">Amount of the order</param>
+    private TransactionRequestType CreateBasePaymentTransactionRequest(Order order, double orderAmount, TransactionType transactionType) => new()
+    {
+        Amount = orderAmount,
+        CurrencyCode = order.CurrencyCode,
+        LineItems = AuthorizeNetModelFactory.CreateLineItems(order),
+        Order = new Models.OrderType
+        {
+            InvoiceNumber = order.Id
+        },
+        CustomerIp = StringHelper.Crop(order.Ip, 15),
+        TransactionType = transactionType is TransactionType.AuthCaptureTransaction
+                ? TransactionTypeEnum.AuthCaptureTransaction
+                : TransactionTypeEnum.AuthOnlyTransaction
+    };
+
+    /// <summary>
+    /// Processes a void transaction for the specified order, reversing the original payment.
+    /// </summary>
+    /// <remarks>Ensure that the order is eligible for a void operation before calling this method. The order
+    /// must reference a valid transaction that can be voided.</remarks>
+    /// <param name="order">The order for which the void transaction is to be processed. Must contain a valid transaction number, amount,
+    /// and currency code.</param>
+    public CreateTransactionResponse? Void(Order order)
+    {
+        var transactionRequest = new TransactionRequestType
+        {
+            TransactionType = TransactionTypeEnum.VoidTransaction,
+            RefTransId = order.TransactionNumber,
+            Amount = order.TransactionAmount,
+            CurrencyCode = order.CurrencyCode
+        };
+
+        return CreateTransaction(transactionRequest);
+    }
+
+    /// <summary>
+    /// Captures a previously authorized transaction using the PriorAuthCaptureTransaction type.
+    /// </summary>
+    /// <param name="order">The order containing the transaction to be captured</param>
+    /// <param name="captureAmount">The amount to capture from the authorized transaction</param>
+    /// <returns>A CreateTransactionResponse containing the results of the capture transaction</returns>
+    public CreateTransactionResponse? Capture(Order order, double captureAmount)
+    {
+        var transactionRequest = new TransactionRequestType
+        {
+            TransactionType = TransactionTypeEnum.PriorAuthCaptureTransaction,
+            Amount = captureAmount,
+            CurrencyCode = order.CurrencyCode,
+            RefTransId = order.TransactionNumber,
+            Order = new Models.OrderType
+            {
+                InvoiceNumber = order.Id
+            }
+        };
+
+        CreateTransactionResponse? response = CreateTransaction(transactionRequest);
+        return response;
+    }
+
+    /// <summary>
+    /// Processes a refund for the specified order and returns the result of the transaction request.   
+    /// </summary>
+    /// <remarks>Ensure that the refund amount is valid and that the order is eligible for a refund. The
+    /// method uses the last four digits of the credit card number associated with the order for processing.</remarks>
+    /// <param name="order">The order for which the refund is being processed. Must contain valid transaction details, including the
+    /// transaction number and currency code.</param>
+    /// <param name="refundAmount">The amount to be refunded. Must be a positive value and cannot exceed the original transaction amount.</param>
+    /// <returns>A response object containing the result of the refund transaction, or null if the transaction could not be processed.</returns>
+    public CreateTransactionResponse? Refund(Order order, double refundAmount)
+    {
+        var transactionRequest = new TransactionRequestType
+        {
+            TransactionType = TransactionTypeEnum.RefundTransaction,
+            Amount = refundAmount,
+            CurrencyCode = order.CurrencyCode,
+            RefTransId = order.TransactionNumber,
+            Order = new Models.OrderType
+            {
+                InvoiceNumber = order.Id
+            }
+        };
+
+        transactionRequest.Payment = new PaymentType
+        {
+            CreditCard = new CreditCardType
+            {
+                CardNumber = order.TransactionCardNumber[^4..],
+                ExpirationDate = SecuritySettings.CreditCardExpirationMask
+            }
+        };
+
+        CreateTransactionResponse? response = CreateTransaction(transactionRequest);
+        return response;
     }
 
     /// <summary>
@@ -161,7 +352,7 @@ internal sealed class AuthorizeNetService : IDisposable
     /// Transaction details are available for up to 2 years after the transaction date.
     /// For more information, see: https://developer.authorize.net/api/reference/index.html#transaction-reporting-get-transaction-details
     /// </remarks>
-    public TransactionDetailsType? GetTransactionDetails(string transactionId)
+    public TransactionDetailsType GetTransactionDetails(string transactionId)
     {
         var request = new GetTransactionDetailsRequest
         {
@@ -173,12 +364,22 @@ internal sealed class AuthorizeNetService : IDisposable
         {
             GetTransactionDetailsRequest = request
         };
+
         var response = _httpService.Post<GetTransactionDetailsResponse>(Converter.Serialize(wrapper));
 
-        if (Enum.TryParse(response?.Messages?.ResultCode, true, out MessageTypeEnum resultCode) && resultCode is MessageTypeEnum.Ok)
-            return response?.Transaction;
+        TransactionDetailsType? transactionDetails = null;
 
-        return null;
+        if (Enum.TryParse(response?.Messages?.ResultCode, true, out MessageTypeEnum resultCode) && resultCode is MessageTypeEnum.Ok)
+            transactionDetails = response.Transaction;
+
+        if (transactionDetails is not null)
+            return transactionDetails;
+
+        var messages = new StringBuilder();
+        foreach (Message message in response?.Messages?.Message ?? [])
+            messages.AppendFormat("Code: {0}, Text: {1}; ", message.Code, message.Text);
+
+        throw new AuthorizeNetApiException($"Failed to retrieve transaction details. ResultCode: {resultCode.ToString()}. Details: {messages}");
     }
 
     /// <summary>
@@ -230,8 +431,8 @@ internal sealed class AuthorizeNetService : IDisposable
         }
         catch (Exception ex)
         {
-            string createDecision = tryCreate 
-                ? "Will attempt to create new profile." 
+            string createDecision = tryCreate
+                ? "Will attempt to create new profile."
                 : string.Empty;
 
             _logger.LogError(ex, "Failed to get customer profile. {0} Error message: {1}", createDecision, ex.Message);
@@ -246,7 +447,7 @@ internal sealed class AuthorizeNetService : IDisposable
 
         if (!tryCreate)
             return null;
-            
+
         var createProfileRequest = new CreateCustomerProfileRequest
         {
             MerchantAuthentication = GetMerchantAuthentication(),
@@ -266,7 +467,7 @@ internal sealed class AuthorizeNetService : IDisposable
             {
                 CustomerProfileId = createResponse?.CustomerProfileId ?? ""
             };
-        }      
+        }
 
         return null;
     }
@@ -543,7 +744,7 @@ internal sealed class AuthorizeNetService : IDisposable
 
             WebhookRegistrationResult registrationResult = DetermineWebhookAction(ourWebhooks, forceRegistration);
 
-            _logger.LogInfo("[WEBHOOK] Registration check result: RequiresRegistration={0}, Reason={1}", 
+            _logger.LogInfo("[WEBHOOK] Registration check result: RequiresRegistration={0}, Reason={1}",
                 registrationResult.RequiresRegistration, registrationResult.Reason);
 
             if (!registrationResult.RequiresRegistration)
@@ -586,7 +787,7 @@ internal sealed class AuthorizeNetService : IDisposable
         return
         [
             "net.authorize.payment.authorization.created",
-            "net.authorize.payment.authcapture.created", 
+            "net.authorize.payment.authcapture.created",
             "net.authorize.payment.capture.created",
             "net.authorize.payment.refund.created",
             "net.authorize.payment.priorAuthCapture.created",

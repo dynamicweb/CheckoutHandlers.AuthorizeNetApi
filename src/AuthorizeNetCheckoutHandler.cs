@@ -6,6 +6,7 @@ using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Services;
 using Dynamicweb.Ecommerce.Orders;
 using Dynamicweb.Ecommerce.Orders.Gateways;
+using Dynamicweb.Ecommerce.Prices;
 using Dynamicweb.Extensibility.AddIns;
 using Dynamicweb.Extensibility.Editors;
 using Dynamicweb.Frontend;
@@ -24,7 +25,7 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi;
 /// AuthorizeNet API Checkout Handler
 /// </summary>
 [AddInName("Authorize.Net API"), AddInDescription("AuthorizeNet API Checkout Handler"), AddInUseParameterGrouping(true)]
-public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullReturn, IPartialReturn, IRemoteCapture, IRemotePartialCapture, ISavedCard, IParameterOptions, ICheckoutHandlerCallback
+public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullReturn, IPartialReturn, IRemoteCapture, ISavedCard, IParameterOptions, ICheckoutHandlerCallback
 {
     private TransactionType _transactionType = TransactionType.AuthCaptureTransaction;
 
@@ -103,7 +104,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     {
         try
         {
-            AuthorizeNetService service = GetAuthorizeNetService(order);
+            using AuthorizeNetService service = GetAuthorizeNetService(order);
 
             LogEvent(order, "Checkout started");
 
@@ -135,8 +136,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
         try
         {
-            AuthorizeNetService service = GetAuthorizeNetService(order);
-
             LogEvent(order, "Redirected to AuthorizeNet CheckoutHandler");
 
             SecurityValidationResult securityValidation = SecurityHelper.ValidateSecurityConfiguration(
@@ -161,7 +160,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             return action switch
             {
-                "Receipt" => OrderCompleted(order, 0, null),
+                "Receipt" => OrderCompleted(order, OrderHelper.GetOrderAmount(order), null),
                 "Cancel" => OrderCancelled(order),
                 _ => ContentOutputResult.Empty
             };
@@ -207,8 +206,12 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             }
         };
 
-        TransactionRequestType transactionRequest = CreateHostedFormRequest(order, orderAmount);
-        GetHostedPaymentPageResponse? response = service.GetHostedPaymentPage(transactionRequest, settings);
+        GetHostedPaymentPageResponse? response = service.GetHostedPaymentPage
+        (
+            order, orderAmount, _transactionType,
+            NeedSaveCard(order, out _),
+            settings
+        );
 
         if (IsResponseSuccessful(response, order))
         {
@@ -226,13 +229,18 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
     private OutputResult CreatePaymentTransaction(Order order, CustomerProfilePaymentType? profileToCharge, AuthorizeNetService? service)
     {
-        service ??= GetAuthorizeNetService(order);
+        using AuthorizeNetService? ownedService = service is null
+            ? GetAuthorizeNetService(order)
+            : null;
+
+        service ??= ownedService!;
         LogEvent(order, "Create payment transaction");
         double orderAmount = OrderHelper.GetOrderAmount(order);
 
         TransactionRequestType transactionRequest = profileToCharge is not null
-            ? CreateSavedCardPaymentRequest(order, orderAmount, profileToCharge)
-            : CreateDirectPaymentRequest(order, orderAmount);
+            ? service.CreateSavedCardPaymentRequest(order, orderAmount, _transactionType, profileToCharge)
+            : service.CreateDirectPaymentRequest(order, orderAmount, _transactionType, NeedSaveCard(order, out _));
+
         CreateTransactionResponse? response = service.CreateTransaction(transactionRequest);
 
         if (IsResponseSuccessful(response, order))
@@ -262,7 +270,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
         if (_transactionType is TransactionType.AuthCaptureTransaction)
         {
-            order.CaptureInfo = new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Success, "Capture successful");
+            order.CaptureInfo = new OrderCaptureInfo(OrderCaptureState.Success, "Capture successful");
             order.CaptureAmount = transactionAmount;
         }
 
@@ -295,111 +303,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     private OutputResult OrderRefused(Order order, string? refusalReason) => OnError(order, $"Payment was refused. Refusal reason: {refusalReason}");
 
     /// <summary>
-    /// Creates a transaction request for hosted form payments (no direct payment data)
-    /// </summary>
-    /// <param name="order">Order to create the request for</param>
-    /// <param name="orderAmount">Amount of the order</param>
-    private TransactionRequestType CreateHostedFormRequest(Order order, double orderAmount)
-    {
-        var request = CreateBaseTransactionRequest(order, orderAmount);
-
-        // Include customer data for hosted form
-        AddCustomerData(request, order);
-
-        // Set stored credentials flag if card needs to be saved
-        if (NeedSaveCard(order, out _))
-        {
-            request.ProcessingOptions = new ProcessingOptionsType
-            {
-                IsStoredCredentials = true
-            };
-        }
-
-        return request;
-    }
-
-    /// <summary>
-    /// Creates a transaction request for direct payments with new card data
-    /// </summary>
-    /// <param name="order">Order to create the request for</param>
-    /// <param name="orderAmount">Amount of the order</param>
-    /// <param name="payment">Payment information</param>
-    private TransactionRequestType CreateDirectPaymentRequest(Order order, double orderAmount)
-    {
-        TransactionRequestType request = CreateBaseTransactionRequest(order, orderAmount);
-
-        // Set stored credentials flag if card needs to be saved
-        if (NeedSaveCard(order, out _))
-        {
-            request.ProcessingOptions = new ProcessingOptionsType
-            {
-                IsStoredCredentials = true
-            };
-        }
-
-        return request;
-    }
-
-    /// <summary>
-    /// Creates a transaction request for payments with saved card (Customer Profile)
-    /// </summary>
-    /// <param name="order">Order to create the request for</param>
-    /// <param name="orderAmount">Amount of the order</param>
-    /// <param name="profileToCharge">Customer profile to charge</param>
-    private TransactionRequestType CreateSavedCardPaymentRequest(Order order, double orderAmount, CustomerProfilePaymentType profileToCharge)
-    {
-        var request = CreateBaseTransactionRequest(order, orderAmount);
-        request.Profile = profileToCharge;
-
-        // For Customer Profiles, Authorize.Net automatically handles COF indicators
-        // No need for additional processing options or subsequent auth information
-
-        return request;
-    }
-
-    /// <summary>
-    /// Creates the base transaction request with common fields
-    /// </summary>
-    /// <param name="order">Order to create the request for</param>
-    /// <param name="orderAmount">Amount of the order</param>
-    private TransactionRequestType CreateBaseTransactionRequest(Order order, double orderAmount)
-    {
-        return new TransactionRequestType
-        {
-            Amount = orderAmount,
-            CurrencyCode = order.CurrencyCode,
-            LineItems = AuthorizeNetModelFactory.CreateLineItems(order),
-            Order = new Models.OrderType
-            {
-                InvoiceNumber = order.Id
-            },
-            CustomerIp = StringHelper.Crop(order.Ip, 15),
-            TransactionType = _transactionType is TransactionType.AuthCaptureTransaction
-                ? TransactionTypeEnum.AuthCaptureTransaction
-                : TransactionTypeEnum.AuthOnlyTransaction
-        };
-    }
-
-    /// <summary>
-    /// Adds customer billing and shipping data to the request
-    /// </summary>
-    /// <param name="request">Transaction request to add customer data to</param>
-    /// <param name="order">Order containing customer data</param>
-    private void AddCustomerData(TransactionRequestType request, Order order)
-    {
-        request.BillTo = AuthorizeNetModelFactory.CreateBillAddress(order);
-        request.Customer = new CustomerDataType
-        {
-            Id = order.CustomerAccessUserId.ToString(),
-            Email = order.CustomerEmail
-        };
-
-        var shipAddress = AuthorizeNetModelFactory.CreateShipAddress(order);
-        if (!string.IsNullOrEmpty(shipAddress.Address))
-            request.ShipTo = shipAddress;
-    }
-
-    /// <summary>
     /// Synchronizes order state with actual Authorize.Net API data for capture operations
     /// Webhooks are triggers - we track DELTA (changes) between API and current Order state
     /// </summary>
@@ -409,7 +312,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     {
         try
         {
-            AuthorizeNetService service = GetAuthorizeNetService(order);
+            using AuthorizeNetService service = GetAuthorizeNetService(order);
             TransactionDetailsType? transactionDetails = service.GetTransactionDetails(transactionId);
 
             if (transactionDetails is null)
@@ -441,32 +344,33 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     }
 
     /// <summary>
-    /// Synchronizes order state with actual Authorize.Net API data for refund operations
-    /// Webhooks are triggers - we track DELTA (changes) between API and current Order state
+    /// Synchronizes order state with actual Authorize.Net API data for refund operations.
+    /// The transactionId here is the REFUND transaction's ID (not the original).
+    /// In Authorize.Net, each refund is a separate transaction - its SettleAmount is the
+    /// amount of this individual refund, not a cumulative total.
     /// </summary>
     /// <param name="order">Order to synchronize</param>
-    /// <param name="transactionId">Transaction ID from webhook</param>
+    /// <param name="transactionId">Refund transaction ID from webhook</param>
     private void SynchronizeOrderWithRefund(Order order, string transactionId)
     {
         try
         {
-            AuthorizeNetService service = GetAuthorizeNetService(order);
+            using AuthorizeNetService service = GetAuthorizeNetService(order);
             TransactionDetailsType? transactionDetails = service.GetTransactionDetails(transactionId);
 
             if (transactionDetails is null)
             {
-                LogError(order, "Failed to retrieve transaction details for ID: {0}", transactionId);
+                LogError(order, "Failed to retrieve refund transaction details for ID: {0}", transactionId);
                 return;
             }
 
             LogEvent(order, "Synchronizing order with API data for refund transaction: {0}", transactionId);
-            UpdateBasicTransactionInfo(order, transactionDetails);
 
-            // Handle refund delta using API data
+            // SettleAmount on a refund transaction = the amount of THIS refund operation
             if (transactionDetails.SettleAmount > 0)
             {
-                double apiRefundAmount = Convert.ToDouble(transactionDetails.SettleAmount);
-                HandleRefundDelta(order, apiRefundAmount, transactionDetails.TransId);
+                double refundAmount = Convert.ToDouble(transactionDetails.SettleAmount);
+                HandleRefundDelta(order, refundAmount, transactionDetails.TransId);
             }
 
             Save(order);
@@ -488,7 +392,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     {
         try
         {
-            AuthorizeNetService service = GetAuthorizeNetService(order);
+            using AuthorizeNetService service = GetAuthorizeNetService(order);
             TransactionDetailsType? transactionDetails = service.GetTransactionDetails(transactionId);
 
             if (transactionDetails is null)
@@ -517,11 +421,11 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <param name="transactionDetails">Transaction details from API</param>
     private void UpdateBasicTransactionInfo(Order order, TransactionDetailsType transactionDetails)
     {
-        if (!string.IsNullOrEmpty(transactionDetails.TransId))            
-            OrderHelper.UpdateTransactionNumber(order, transactionDetails.TransId);            
+        if (!string.IsNullOrEmpty(transactionDetails.TransId))
+            OrderHelper.UpdateTransactionNumber(order, transactionDetails.TransId);
 
-        if (transactionDetails.ResponseCode > 0)            
-            order.TransactionStatus = AuthorizeNetErrorMessageBuilder.GetResponseTextByCode(transactionDetails.ResponseCode);            
+        if (transactionDetails.ResponseCode > 0)
+            order.TransactionStatus = AuthorizeNetErrorMessageBuilder.GetResponseTextByCode(transactionDetails.ResponseCode);
     }
 
     /// <summary>
@@ -557,7 +461,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         double currentCaptureAmount = order.CaptureAmount;
         double captureDelta = apiCaptureAmount - currentCaptureAmount;
 
-        LogEvent(order, "Capture delta check: API={0:C}, Current={1:C}, Delta={2:C}", 
+        LogEvent(order, "Capture delta check: API={0:C}, Current={1:C}, Delta={2:C}",
                 apiCaptureAmount, currentCaptureAmount, captureDelta, DebuggingInfoType.CaptureResult);
 
         if (captureDelta <= 0.01) // Allow for small rounding differences
@@ -572,11 +476,11 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
         // Determine if this results in partial or full capture
         bool isPartialCapture = Math.Abs(newTotalCaptured - authAmount) > 0.01;
-        var captureState = isPartialCapture 
-            ? OrderCaptureState.Split 
+        var captureState = isPartialCapture
+            ? OrderCaptureState.Split
             : OrderCaptureState.Success;
 
-        string message = isPartialCapture 
+        string message = isPartialCapture
             ? $"Additional capture: {captureDelta:C} (Total: {newTotalCaptured:C} of {authAmount:C})"
             : $"Final capture: {captureDelta:C} (Total: {newTotalCaptured:C})";
 
@@ -600,15 +504,21 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     }
 
     /// <summary>
-    /// Handles refund delta - only processes NEW refund amount
+    /// Handles a refund operation from a webhook.
+    /// In Authorize.Net, each refund is a SEPARATE transaction with its own transId.
+    /// The refund transaction's SettleAmount is the amount of THIS SPECIFIC refund, not a cumulative total.
+    /// There is no "total refunded" field on the original transaction in the API.
     /// </summary>
-    private void HandleRefundDelta(Order order, double apiRefundAmount, string? transactionId)
+    /// <param name="order">Order to update</param>
+    /// <param name="refundOperationAmount">The amount of this specific refund operation (from refund transaction's SettleAmount)</param>
+    /// <param name="transactionId">The refund transaction ID (used for idempotency check)</param>
+    private void HandleRefundDelta(Order order, double refundOperationAmount, string? transactionId)
     {
         double capturedAmount = order.CaptureAmount;
 
         if (capturedAmount <= 0)
         {
-            LogEvent(order, "Skipping refund delta - no captured amount to refund", DebuggingInfoType.ReturnResult);
+            LogEvent(order, "Skipping refund - no captured amount to refund", DebuggingInfoType.ReturnResult);
             return;
         }
 
@@ -626,34 +536,55 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             }
         }
 
-        // Calculate actual amount of this refund operation (delta)
-        double refundDelta = apiRefundAmount - previousRefundedAmount;
+        LogEvent(order, "Refund check: This refund={0:C}, Previous refunded={1:C}, Captured={2:C}",
+                refundOperationAmount, previousRefundedAmount, capturedAmount, DebuggingInfoType.ReturnResult);
 
-        LogEvent(order, "Refund delta check: API refund={0:C}, Previous refunded={1:C}, Delta={2:C}", 
-                apiRefundAmount, previousRefundedAmount, refundDelta, DebuggingInfoType.ReturnResult);
-
-        if (refundDelta <= 0.01) // Allow for small rounding differences
+        if (refundOperationAmount <= 0.01)
         {
-            LogEvent(order, "No new refund amount detected (Delta: {0:C})", refundDelta, DebuggingInfoType.ReturnResult);
+            LogEvent(order, "Skipping refund - amount is zero or negative: {0:C}", refundOperationAmount, DebuggingInfoType.ReturnResult);
             return;
         }
 
-        // We have a new refund operation - determine refund type based on total refunded vs captured
-        double totalRefundedAfterOperation = apiRefundAmount;
-        bool isPartialRefund = Math.Abs(totalRefundedAfterOperation - capturedAmount) > 0.01;
-        OrderReturnOperationState refundState = isPartialRefund 
-            ? OrderReturnOperationState.PartiallyReturned 
+        // Idempotency: check if this refund transaction was already recorded by ProceedReturn
+        if (!string.IsNullOrEmpty(transactionId) && order.ReturnOperations?.Any() == true)
+        {
+            string marker = $"[RefundTransId:{transactionId}]";
+            bool alreadyRecorded = order.ReturnOperations.Any(op =>
+                op.Message?.Contains(marker, StringComparison.Ordinal) == true);
+
+            if (alreadyRecorded)
+            {
+                LogEvent(order, "Skipping refund - transaction {0} already recorded by direct operation.",
+                        transactionId, DebuggingInfoType.ReturnResult);
+                return;
+            }
+        }
+
+        // Total refunded = previous refunds + this new refund
+        double totalRefundedAfterOperation = previousRefundedAmount + refundOperationAmount;
+
+        // Safety net: if adding this refund would exceed captured amount, skip
+        if (totalRefundedAfterOperation > capturedAmount + 0.01)
+        {
+            LogEvent(order, "Skipping refund - would exceed captured amount. Total after: {0:C}, Captured: {1:C}.",
+                    totalRefundedAfterOperation, capturedAmount, DebuggingInfoType.ReturnResult);
+            return;
+        }
+        bool isPartialRefund = Math.Abs(totalRefundedAfterOperation - capturedAmount) > 0.01
+                               && totalRefundedAfterOperation < capturedAmount;
+        OrderReturnOperationState refundState = isPartialRefund
+            ? OrderReturnOperationState.PartiallyReturned
             : OrderReturnOperationState.FullyReturned;
 
-        string message = isPartialRefund 
-            ? $"Partial refund: {refundDelta:C} (Total refunded: {totalRefundedAfterOperation:C} of {capturedAmount:C})"
-            : $"Full refund: {refundDelta:C} (Total refunded: {totalRefundedAfterOperation:C})";
+        string markerSuffix = !string.IsNullOrEmpty(transactionId) ? $" [RefundTransId:{transactionId}]" : "";
+        string message = isPartialRefund
+            ? $"Partial refund: {refundOperationAmount:C} (Total refunded: {totalRefundedAfterOperation:C} of {capturedAmount:C}){markerSuffix}"
+            : $"Full refund: {refundOperationAmount:C} (Total refunded: {totalRefundedAfterOperation:C}){markerSuffix}";
 
-        // Save return operation for the new refund amount (delta)
-        OrderReturnInfo.SaveReturnOperation(refundState, message, refundDelta, order);
+        OrderReturnInfo.SaveReturnOperation(refundState, message, refundOperationAmount, order);
 
-        LogEvent(order, "Processed new refund: {0}. Previous: {1:C}, Current total: {2:C}, This operation: {3:C}", 
-                message, previousRefundedAmount, totalRefundedAfterOperation, refundDelta, DebuggingInfoType.ReturnResult);
+        LogEvent(order, "Processed refund: {0}. Previous: {1:C}, New total: {2:C}, This operation: {3:C}",
+                message, previousRefundedAmount, totalRefundedAfterOperation, refundOperationAmount, DebuggingInfoType.ReturnResult);
     }
 
     /// <summary>
@@ -738,7 +669,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             // This is auth_only - just update basic info
             try
             {
-                AuthorizeNetService service = GetAuthorizeNetService(order);
+                using AuthorizeNetService service = GetAuthorizeNetService(order);
                 TransactionDetailsType? transactionDetails = service.GetTransactionDetails(payload.Id);
 
                 if (transactionDetails is not null)
@@ -839,7 +770,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <summary>
     /// Cancels an order (performs Void transaction in Authorize.Net)
     /// Void is only possible on the day of the transaction before batch closing time
-    /// If void is not possible, the system will automatically perform a refund
     /// </summary>
     /// <param name="order">Order to cancel</param>
     public bool CancelOrder(Order order)
@@ -848,7 +778,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
         try
         {
-            AuthorizeNetService service = GetAuthorizeNetService(order);
+            using AuthorizeNetService service = GetAuthorizeNetService(order);
             LogEvent(order, "Cancel order attempt for Order {0}, Amount {1}", order.Id, order.TransactionAmount);
 
             if (string.IsNullOrEmpty(order.Id))
@@ -876,11 +806,8 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 return true;
             }
 
-            LogEvent(order, "Void failed, attempting refund instead");
-            FullReturn(order);
-            LogEvent(order, "Order refunded");
-
-            return true;
+            LogEvent(order, "Void transaction failed");
+            return false;
         }
         catch (Exception ex)
         {
@@ -896,15 +823,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <param name="service">Authorize.Net service instance</param>
     private bool TryVoidTransaction(Order order, AuthorizeNetService service)
     {
-        var transactionRequest = new TransactionRequestType
-        {
-            TransactionType = TransactionTypeEnum.VoidTransaction,
-            RefTransId = order.TransactionNumber,
-            Amount = order.TransactionAmount,
-            CurrencyCode = order.CurrencyCode
-        };
-
-        CreateTransactionResponse? response = service.CreateTransaction(transactionRequest);
+        CreateTransactionResponse? response = service.Void(order);
 
         if (IsResponseSuccessful(response, order))
             return true;
@@ -918,200 +837,148 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     }
 
     /// <summary>
-    /// Captures the authorized amount
-    /// Capture must occur within 30 days of authorization
+    /// Captures the full order amount
     /// </summary>
-    /// <param name="order">Order to capture funds for</param>
+    /// <param name="order">Order to capture</param>
+    /// <returns>Capture operation result information</returns>
     public OrderCaptureInfo Capture(Order order)
     {
+        LogEvent(order, "Full capture requested");
+        long fullAmount = order.Price.PricePIP + Ecommerce.Prices.PriceHelper.ConvertToPIP(order.Currency, order.ExternalPaymentFee);
+
+        return Capture(order, fullAmount, true);
+    }
+
+    /// <summary>
+    /// Captures a specific amount from an authorized payment
+    /// </summary>
+    /// <param name="order">Order to capture</param>
+    /// <param name="amount">Amount to capture in minor currency units</param>
+    /// <param name="final">Whether this is the final capture (true) or allows additional captures (false)</param>
+    /// <returns>Capture operation result information</returns>
+    public OrderCaptureInfo Capture(Order order, long amount, bool final)
+    {
+        LogEvent(order, "Remote capture requested for amount: {0}", amount / 100d);
+
         try
         {
-            AuthorizeNetService service = GetAuthorizeNetService(order);
-
-            LogEvent(order, "Attempting capture");
-
             if (order is null)
             {
-                LogError(null, PreparedMessages.OrderNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, PreparedMessages.OrderNotSetMessage);
+                LogError(null, "Order not set");
+
+                return new OrderCaptureInfo(OrderCaptureState.Failed, "Order not set");
             }
 
             if (string.IsNullOrEmpty(order.Id))
             {
-                LogError(order, PreparedMessages.OrderIdNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, PreparedMessages.OrderIdNotSetMessage);
+                LogError(null, "Order id not set");
+
+                return new OrderCaptureInfo(OrderCaptureState.Failed, "Order id not set");
             }
 
             if (string.IsNullOrEmpty(order.TransactionNumber))
             {
-                LogError(order, PreparedMessages.TransactionNumberNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, PreparedMessages.TransactionNumberRequiredMessage);
+                LogError(null, "Transaction number not set");
+
+                return new OrderCaptureInfo(OrderCaptureState.Failed, "Transaction number not set");
             }
 
-            string errorText = OrderHelper.GetOrderError(order);
-            if (!string.IsNullOrEmpty(errorText))
+            long orderTotalPIP = order.Price.PricePIP + PriceHelper.ConvertToPIP(order.Currency, order.ExternalPaymentFee);
+            if (amount > orderTotalPIP)
             {
-                LogError(order, errorText);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, errorText);
+                LogError(null, "Amount to capture should be less or equal to order total");
+                return new OrderCaptureInfo(OrderCaptureState.Failed, "Amount to capture should be less or equal to order total");
             }
 
-            double orderAmount = OrderHelper.GetOrderAmount(order);
+            string transactionId = order.TransactionNumber;
+            using AuthorizeNetService service = GetAuthorizeNetService(order);
+            TransactionDetailsType? preOperationDetails = service.GetTransactionDetails(transactionId);
 
-            var transactionRequest = new TransactionRequestType
+            if (preOperationDetails is null)
             {
-                TransactionType = TransactionTypeEnum.PriorAuthCaptureTransaction,
-                Amount = orderAmount,
-                CurrencyCode = order.CurrencyCode,
-                RefTransId = order.TransactionNumber,
-                Order = new Models.OrderType
-                {
-                    InvoiceNumber = order.Id
-                }
-            };
-
-            CreateTransactionResponse? response = service.CreateTransaction(transactionRequest);
-
-            if (IsResponseSuccessful(response, order) && response?.TransactionResponse is not null)
-            {
-                LogEvent(order, PreparedMessages.CaptureSuccessMessage, DebuggingInfoType.CaptureResult);
-                OrderHelper.UpdateTransactionNumber(order, response.TransactionResponse.TransId ?? "");
-
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Success, PreparedMessages.CaptureSuccessMessage);
+                LogError(order, "Failed to retrieve transaction details for ID: {0}", transactionId);
+                return new OrderCaptureInfo(OrderCaptureState.Failed, "Failed to retrieve transaction details");
             }
 
-            string infoText = response?.TransactionResponse?.Errors?.FirstOrDefault()?.ErrorText
-                             ?? response?.Messages?.Message?.FirstOrDefault()?.Text
-                             ?? "Capture failed";
-            LogEvent(order, infoText, DebuggingInfoType.CaptureResult);
+            double preOperationCapturedAmount = preOperationDetails.SettleAmount;
+            double operationCaptureAmount = amount / 100d;
 
-            return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, infoText);
+            CreateTransactionResponse? response = service.Capture(order, operationCaptureAmount);
+
+            if (!IsResponseSuccessful(response, order) || response?.TransactionResponse is null)
+            {
+                string message = response?.TransactionResponse?.Errors?.FirstOrDefault()?.ErrorText
+                            ?? response?.Messages?.Message?.FirstOrDefault()?.Text
+                            ?? "Capture failed";
+                LogEvent(order, message, DebuggingInfoType.CaptureResult);
+
+                return new OrderCaptureInfo(OrderCaptureState.Failed, message);
+            }
+
+            LogEvent(order, PreparedMessages.CaptureSuccessMessage, DebuggingInfoType.CaptureResult);
+            OrderHelper.UpdateTransactionNumber(order, response.TransactionResponse.TransId ?? "");
+            transactionId = order.TransactionNumber;
+
+            TransactionDetailsType? postOperationDetails = service.GetTransactionDetails(transactionId);
+            if (postOperationDetails is null)
+            {
+                LogError(order, "Failed to retrieve transaction details for ID: {0}", transactionId);
+                return new OrderCaptureInfo(OrderCaptureState.Failed, "Failed to retrieve transaction details");
+            }
+
+            double postOperationCapturedAmount = postOperationDetails.SettleAmount;
+
+            // Check if captured amount actually changed.
+            // This is important for idempotency - if the same capture request is sent multiple times, we don't want to treat it as a new capture if the captured amount hasn't changed.
+            bool actuallyChanged = postOperationCapturedAmount > preOperationCapturedAmount;
+
+            OrderCaptureInfo captureState = DetermineCaptureState(postOperationDetails);
+
+            if (actuallyChanged && (captureState.State is OrderCaptureState.Success ||
+                captureState.State is OrderCaptureState.Split))
+            {
+                UpdateReturnOperationStatesAfterCapture(order, postOperationCapturedAmount);
+                Ecommerce.Services.Orders.Save(order);
+
+                LogEvent(order, "Capture operation completed. Amount changed from {0} to {1}",
+                    preOperationCapturedAmount, postOperationCapturedAmount);
+            }
+            else if (!actuallyChanged)
+            {
+                LogEvent(order, "Capture operation idempotent - no changes made. Server amount remains: {0}", postOperationCapturedAmount);
+                return new OrderCaptureInfo(OrderCaptureState.Cancel, "Capture request is idempotent - no changes made");
+            }
+
+            return captureState;
         }
         catch (Exception ex)
         {
-            string errorMessage = $"{PreparedMessages.UnexpectedErrorMessage}: {ex.Message}";
-            LogError(order, ex, errorMessage);
-
-            return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, errorMessage);
+            LogError(order, ex, "Remote capture failed: {0}", ex.Message);
+            return new OrderCaptureInfo(OrderCaptureState.Failed, "Remote capture failed");
         }
     }
 
     /// <summary>
-    /// Partial capture of authorized amount
+    /// Determines capture state based on transaction details
     /// </summary>
-    /// <param name="order">Order to capture funds for</param>
-    /// <param name="amount">Amount to capture</param>
-    /// <param name="final">True if this is the final capture (no more captures will follow)</param>
-    public OrderCaptureInfo Capture(Order order, long amount, bool final)
+    private OrderCaptureInfo DetermineCaptureState(TransactionDetailsType transactionDetails)
     {
-        try
-        {
-            AuthorizeNetService service = GetAuthorizeNetService(order);
-            LogEvent(order, $"Attempting partial capture: {amount / 100.0:C}, final: {final}");
+        double totalCapturedAmount = transactionDetails.SettleAmount;
+        double totalAuthorizedAmount = transactionDetails.AuthAmount;
 
-            if (order is null)
-            {
-                LogError(null, PreparedMessages.OrderNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, PreparedMessages.OrderNotSetMessage);
-            }
+        if (totalCapturedAmount >= totalAuthorizedAmount)
+            return new OrderCaptureInfo(OrderCaptureState.Success, "Full capture completed");
+        else if (totalCapturedAmount > 0)
+            return new OrderCaptureInfo(OrderCaptureState.Split, "Partial capture completed");
 
-            if (string.IsNullOrEmpty(order.Id))
-            {
-                LogError(order, PreparedMessages.OrderIdNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, PreparedMessages.OrderIdNotSetMessage);
-            }
-
-            if (string.IsNullOrEmpty(order.TransactionNumber))
-            {
-                LogError(order, PreparedMessages.TransactionNumberNotSetMessage);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, PreparedMessages.TransactionNumberRequiredMessage);
-            }
-
-            if (amount > order.Price.PricePIP)
-            {
-                string errorMsg = "Amount to capture should be less or equal to order total";
-                LogError(order, errorMsg);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, errorMsg);
-            }
-
-            string errorText = OrderHelper.GetOrderError(order);
-            if (!string.IsNullOrEmpty(errorText))
-            {
-                LogError(order, errorText);
-                return new OrderCaptureInfo(OrderCaptureInfo.OrderCaptureState.Failed, errorText);
-            }
-
-            (bool isValid, string? errorMessage) = ValidatePartialCapture(order, amount, final);
-            if (!isValid)
-            {
-                LogError(order, errorMessage ?? "");
-                return new OrderCaptureInfo(OrderCaptureState.Failed, errorMessage);
-            }
-
-            double captureAmount = amount / 100.0d;
-
-            var transactionRequest = new TransactionRequestType
-            {
-                TransactionType = TransactionTypeEnum.PriorAuthCaptureTransaction,
-                Amount = captureAmount,
-                CurrencyCode = order.CurrencyCode,
-                RefTransId = order.TransactionNumber,
-                Order = new Models.OrderType
-                {
-                    InvoiceNumber = order.Id
-                }
-            };
-
-            CreateTransactionResponse? response = service.CreateTransaction(transactionRequest);
-
-            if (IsResponseSuccessful(response, order))
-            {
-                string captureMessage = final
-                    ? $"Final partial capture successful: {captureAmount:C}"
-                    : $"Partial capture successful: {captureAmount:C}";
-
-                LogEvent(order, captureMessage, DebuggingInfoType.CaptureResult);
-                return new OrderCaptureInfo(OrderCaptureState.Success, captureMessage);
-            }
-
-            string infoText = response?.TransactionResponse?.Errors?.FirstOrDefault()?.ErrorText
-                             ?? response?.Messages?.Message?.FirstOrDefault()?.Text
-                             ?? "Partial capture failed";
-
-            LogEvent(order, infoText, DebuggingInfoType.CaptureResult);
-
-            return new OrderCaptureInfo(OrderCaptureState.Failed, infoText);
-        }
-        catch (Exception ex)
-        {
-            string errorMessage = $"{PreparedMessages.UnexpectedErrorMessage}: {ex.Message}";
-            LogError(order, ex, errorMessage);
-
-            return new OrderCaptureInfo(OrderCaptureState.Failed, errorMessage);
-        }
-    }
-
-    private (bool isValid, string? errorMessage) ValidatePartialCapture(Order order, long amount, bool final)
-    {
-        if (amount <= 0)
-            return (false, "Capture amount must be greater than zero");
-
-        // Check that we don't exceed original authorized amount
-        double requestedCaptureAmount = amount / 100.0;
-        double currentCapturedAmount = order.CaptureAmount;
-        double totalAfterCapture = currentCapturedAmount + requestedCaptureAmount;
-        double authorizedAmount = OrderHelper.GetOrderAmount(order);
-
-        if (totalAfterCapture > authorizedAmount)
-            return (false, $"Total capture amount ({totalAfterCapture:C}) cannot exceed authorized amount ({authorizedAmount:C})");
-
-        return (true, null);
+        return new OrderCaptureInfo(OrderCaptureState.Failed, "No amount captured");
     }
 
     /// <summary>
     /// Performs a full refund for the order
     /// </summary>
     /// <param name="order">Order to refund</param>
-    public void FullReturn(Order order)    
+    public void FullReturn(Order order)
       => ProceedReturn(order, null);
 
     /// <summary>
@@ -1121,7 +988,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <param name="originalOrder">Original order for reference</param>
     public void PartialReturn(Order order, Order originalOrder) =>
         ProceedReturn(originalOrder, order?.Price?.PricePIP);
-    
+
     private void ProceedReturn(Order order, long? amount)
     {
         if (order is null)
@@ -1153,11 +1020,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             return;
         }
 
-        double operationAmount = amount is null 
-            ? order.CaptureAmount 
-            : Converter.ToDouble(amount) / 100;
-
-        if (order.CaptureInfo is null || order.CaptureInfo.State is not OrderCaptureState.Success || order.CaptureAmount <= 0.00)
+        if (order.CaptureInfo is null || (order.CaptureInfo.State is not OrderCaptureState.Success and not OrderCaptureState.Split) || order.CaptureAmount <= 0.00)
         {
             string errorMessage = "Order must be captured before return.";
             OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, errorMessage, order.CaptureAmount, order);
@@ -1165,19 +1028,47 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             return;
         }
 
-        if (amount is not null && order.CaptureAmount < operationAmount)
+        // Calculate remaining refundable amount (captured minus already refunded)
+        double previouslyRefunded = 0.0;
+        if (order.ReturnOperations?.Any() is true)
         {
-            string formattedAmount = Ecommerce.Services.Currencies.Format(order.Currency, order.CaptureAmount);
+            foreach (OrderReturnInfo refundOperation in order.ReturnOperations)
+            {
+                if (refundOperation.State is OrderReturnOperationState.PartiallyReturned ||
+                    refundOperation.State is OrderReturnOperationState.FullyReturned)
+                {
+                    previouslyRefunded += refundOperation.Amount;
+                }
+            }
+        }
+
+        double remainingRefundable = order.CaptureAmount - previouslyRefunded;
+
+        double operationAmount = amount is null
+            ? remainingRefundable
+            : Converter.ToDouble(amount) / 100;
+
+        if (operationAmount <= 0.01)
+        {
+            string errorMessage = $"Nothing left to refund. Captured: {order.CaptureAmount:C}, Already refunded: {previouslyRefunded:C}.";
+            OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, errorMessage, 0, order);
+            LogError(order, errorMessage);
+            return;
+        }
+
+        if (operationAmount > remainingRefundable + 0.01)
+        {
+            string formattedRemaining = Ecommerce.Services.Currencies.Format(order.Currency, remainingRefundable);
             string formattedRequestedAmount = Ecommerce.Services.Currencies.Format(order.Currency, operationAmount);
 
             OrderReturnInfo.SaveReturnOperation
             (
                 OrderReturnOperationState.Failed,
-                $"Order captured amount ({formattedAmount}) less than amount requested for return({formattedRequestedAmount}).",
+                $"Remaining refundable amount ({formattedRemaining}) less than amount requested for return ({formattedRequestedAmount}).",
                 operationAmount,
                 order
             );
-            LogError(order, "Order captured amount less then amount requested for return.");
+            LogError(order, "Remaining refundable amount less than amount requested for return.");
             return;
         }
 
@@ -1191,31 +1082,35 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
         try
         {
-            AuthorizeNetService service = GetAuthorizeNetService(order);
-          
-            TransactionRequestType transactionRequest = CreateRefundRequest(order, operationAmount);
-            CreateTransactionResponse? response = service.CreateTransaction(transactionRequest);
+            using AuthorizeNetService service = GetAuthorizeNetService(order);
+            CreateTransactionResponse? response = service.Refund(order, operationAmount);
 
-            if (IsResponseSuccessful(response, order))
+            if (!IsResponseSuccessful(response, order))
             {
-                LogEvent(order, $"Refund successful for amount: {operationAmount:C}");
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.FullyReturned, PreparedMessages.RefundSuccessMessage, operationAmount, order);
-            }
-            else
-            {
-                string infoText = response?.TransactionResponse?.Errors?.FirstOrDefault()?.ErrorText
-                                 ?? response?.Messages?.Message?.FirstOrDefault()?.Text
-                                 ?? "Refund failed";
+                string message = response?.TransactionResponse?.Errors?.FirstOrDefault()?.ErrorText
+                               ?? response?.Messages?.Message?.FirstOrDefault()?.Text
+                               ?? "Refund failed";
 
-                LogError(order, infoText);
-                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, infoText, operationAmount, order);
+                LogError(order, message);
+                OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, message, operationAmount, order);
+
+                return;
             }
-           
-            var operationState = amount is null
+
+            string refundTransId = response?.TransactionResponse?.TransId ?? "";
+            double totalRefundedAfter = previouslyRefunded + operationAmount;
+            bool isFullRefund = Math.Abs(totalRefundedAfter - order.CaptureAmount) <= 0.01;
+
+            var operationState = isFullRefund
                 ? OrderReturnOperationState.FullyReturned
                 : OrderReturnOperationState.PartiallyReturned;
-            OrderReturnInfo.SaveReturnOperation(operationState, "Authorize.Net has refunded payment.", operationAmount, order);
-            
+
+            string refundMessage = string.IsNullOrEmpty(refundTransId)
+                ? "Authorize.Net has refunded payment."
+                : $"Authorize.Net has refunded payment. [RefundTransId:{refundTransId}]";
+
+            OrderReturnInfo.SaveReturnOperation(operationState, refundMessage, operationAmount, order);
+
         }
         catch (Exception ex)
         {
@@ -1223,37 +1118,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             LogError(order, ex, errorMessage);
             OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, errorMessage, 0, order);
         }
-    }
-
-    /// <summary>
-    /// Creates a refund request
-    /// </summary>
-    /// <param name="order">Order to refund</param>
-    /// <param name="refundAmount">Amount to refund</param>
-    private TransactionRequestType CreateRefundRequest(Order order, double refundAmount)
-    {
-        var transactionRequest = new TransactionRequestType
-        {
-            TransactionType = TransactionTypeEnum.RefundTransaction,
-            Amount = refundAmount,
-            CurrencyCode = order.CurrencyCode,
-            RefTransId = order.TransactionNumber,
-            Order = new Models.OrderType
-            {
-                InvoiceNumber = order.Id
-            }
-        };
-                      
-        transactionRequest.Payment = new PaymentType
-        {
-            CreditCard = new CreditCardType
-            {
-                CardNumber = order.TransactionCardNumber[^4..],
-                ExpirationDate = SecuritySettings.CreditCardExpirationMask
-            }
-        };        
-
-        return transactionRequest;
     }
 
     /// <summary>
@@ -1288,7 +1152,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
         try
         {
-            AuthorizeNetService service = GetAuthorizeNetService();
+            using AuthorizeNetService service = GetAuthorizeNetService();
 
             CustomerProfileMaskedType? profile = GetCustomerProfile(service, userId, false);
             if (string.IsNullOrEmpty(profile?.CustomerProfileId))
@@ -1367,7 +1231,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         if (string.IsNullOrEmpty(savedCard.Token))
             throw new ArgumentException($"Invalid token for saved card ID: {order.SavedCardId}");
 
-        AuthorizeNetService service = GetAuthorizeNetService(order);
+        using AuthorizeNetService service = GetAuthorizeNetService(order);
         CustomerProfileMaskedType? profile = GetCustomerProfile(service, order.CustomerAccessUserId, false);
         if (string.IsNullOrEmpty(profile?.CustomerProfileId))
             throw new InvalidOperationException($"Customer profile not found for user: {order.CustomerAccessUserId}");
@@ -1411,7 +1275,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
     private void LogOrderDebuggingInfo(string message, DebuggingInfoType debuggingInfoType) =>
         Ecommerce.Services.OrderDebuggingInfos.Save(null, message, "Authorize.Net checkout handler", debuggingInfoType);
-       
+
     /// <summary>
     /// Checks if saved cards are supported for the given order
     /// </summary>
@@ -1438,7 +1302,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         if (!AllowSaveCards || order.CustomerAccessUserId <= 0)
             return;
 
-        AuthorizeNetService service = GetAuthorizeNetService(order);
+        using AuthorizeNetService service = GetAuthorizeNetService(order);
         CustomerProfileMaskedType? profile = GetCustomerProfile(service, order.CustomerAccessUserId, true);
         if (profile is null)
             return;
@@ -1450,7 +1314,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         PaymentCardToken? paymentCard = Ecommerce.Services.PaymentCard.CreatePaymentCard(
             order.CustomerAccessUserId, order.PaymentMethodId, cardName,
             order.TransactionCardType, order.TransactionCardNumber, cardToken
-        );        
+        );
 
         order.SavedCardId = paymentCard.ID;
         Save(order);
@@ -1563,18 +1427,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         return isSuccess;
     }
 
-    /// <summary>
-    /// Checks if capture is supported for the given order
-    /// </summary>
-    /// <param name="order">Order to check</param>
-    public bool CaptureSupported(Order order) => true;
-
-    /// <summary>
-    /// Checks if split capture is supported for the given order
-    /// </summary>
-    /// <param name="order">Order to check</param>
-    public bool SplitCaptureSupported(Order order) => true;
-
     #region Webhook Management
 
     /// <summary>
@@ -1593,7 +1445,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             try
             {
                 string webhookUrl = BuildWebhookUrl(order);
-                AuthorizeNetService service = GetAuthorizeNetService();
+                using AuthorizeNetService service = GetAuthorizeNetService();
 
                 // Check if webhooks already exist for this URL
                 WebhookListResponse existingWebhooks = service.GetWebhooks();
@@ -1628,7 +1480,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         try
         {
             string webhookUrl = BuildWebhookUrl(order);
-            var service = GetAuthorizeNetService(order);
+            using var service = GetAuthorizeNetService(order);
 
             var response = service.EnsureWebhooksRegistered(webhookUrl, ForceWebhookRegistration);
 
