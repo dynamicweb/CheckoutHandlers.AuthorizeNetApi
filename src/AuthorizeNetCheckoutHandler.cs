@@ -313,13 +313,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         try
         {
             using AuthorizeNetService service = GetAuthorizeNetService(order);
-            TransactionDetailsType? transactionDetails = service.GetTransactionDetails(transactionId);
-
-            if (transactionDetails is null)
-            {
-                LogError(order, "Failed to retrieve transaction details for ID: {0}", transactionId);
-                return;
-            }
+            TransactionDetailsType transactionDetails = service.GetTransactionDetails(transactionId);
 
             LogEvent(order, "Synchronizing order with API data for capture transaction: {0}", transactionId);
             UpdateBasicTransactionInfo(order, transactionDetails);
@@ -356,13 +350,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         try
         {
             using AuthorizeNetService service = GetAuthorizeNetService(order);
-            TransactionDetailsType? transactionDetails = service.GetTransactionDetails(transactionId);
-
-            if (transactionDetails is null)
-            {
-                LogError(order, "Failed to retrieve refund transaction details for ID: {0}", transactionId);
-                return;
-            }
+            TransactionDetailsType transactionDetails = service.GetTransactionDetails(transactionId);
 
             LogEvent(order, "Synchronizing order with API data for refund transaction: {0}", transactionId);
 
@@ -393,13 +381,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         try
         {
             using AuthorizeNetService service = GetAuthorizeNetService(order);
-            TransactionDetailsType? transactionDetails = service.GetTransactionDetails(transactionId);
-
-            if (transactionDetails is null)
-            {
-                LogError(order, "Failed to retrieve transaction details for ID: {0}", transactionId);
-                return;
-            }
+            TransactionDetailsType transactionDetails = service.GetTransactionDetails(transactionId);
 
             LogEvent(order, "Synchronizing order with API data for void transaction: {0}", transactionId);
             UpdateBasicTransactionInfo(order, transactionDetails);
@@ -670,23 +652,20 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             try
             {
                 using AuthorizeNetService service = GetAuthorizeNetService(order);
-                TransactionDetailsType? transactionDetails = service.GetTransactionDetails(payload.Id);
+                TransactionDetailsType transactionDetails = service.GetTransactionDetails(payload.Id);
+                              
+                UpdateBasicTransactionInfo(order, transactionDetails);
+                UpdateCardInformation(order, transactionDetails);
 
-                if (transactionDetails is not null)
+                // For auth-only, just update transaction amount if needed
+                double authAmount = OrderHelper.GetOrderAmount(order);
+                if (Math.Abs(order.TransactionAmount - authAmount) > 0.01)
                 {
-                    UpdateBasicTransactionInfo(order, transactionDetails);
-                    UpdateCardInformation(order, transactionDetails);
-
-                    // For auth-only, just update transaction amount if needed
-                    double authAmount = OrderHelper.GetOrderAmount(order);
-                    if (Math.Abs(order.TransactionAmount - authAmount) > 0.01)
-                    {
-                        order.TransactionAmount = authAmount;
-                        LogEvent(order, "Updated authorization amount: {0:C}", authAmount);
-                    }
-
-                    Save(order);
+                    order.TransactionAmount = authAmount;
+                    LogEvent(order, "Updated authorization amount: {0:C}", authAmount);
                 }
+
+                Save(order);                
             }
             catch (Exception ex)
             {
@@ -844,7 +823,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     public OrderCaptureInfo Capture(Order order)
     {
         LogEvent(order, "Full capture requested");
-        long fullAmount = order.Price.PricePIP + Ecommerce.Prices.PriceHelper.ConvertToPIP(order.Currency, order.ExternalPaymentFee);
+        long fullAmount = order.Price.PricePIP + PriceHelper.ConvertToPIP(order.Currency, order.ExternalPaymentFee);
 
         return Capture(order, fullAmount, true);
     }
@@ -856,7 +835,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// <param name="amount">Amount to capture in minor currency units</param>
     /// <param name="final">Whether this is the final capture (true) or allows additional captures (false)</param>
     /// <returns>Capture operation result information</returns>
-    public OrderCaptureInfo Capture(Order order, long amount, bool final)
+    private OrderCaptureInfo Capture(Order order, long amount, bool final)
     {
         LogEvent(order, "Remote capture requested for amount: {0}", amount / 100d);
 
@@ -890,22 +869,11 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 return new OrderCaptureInfo(OrderCaptureState.Failed, "Amount to capture should be less or equal to order total");
             }
 
-            string transactionId = order.TransactionNumber;
-            using AuthorizeNetService service = GetAuthorizeNetService(order);
-            TransactionDetailsType? preOperationDetails = service.GetTransactionDetails(transactionId);
-
-            if (preOperationDetails is null)
-            {
-                LogError(order, "Failed to retrieve transaction details for ID: {0}", transactionId);
-                return new OrderCaptureInfo(OrderCaptureState.Failed, "Failed to retrieve transaction details");
-            }
-
-            double preOperationCapturedAmount = preOperationDetails.SettleAmount;
+            using AuthorizeNetService service = GetAuthorizeNetService(order);           
             double operationCaptureAmount = amount / 100d;
-
             CreateTransactionResponse? response = service.Capture(order, operationCaptureAmount);
 
-            if (!IsResponseSuccessful(response, order) || response?.TransactionResponse is null)
+            if (!IsResponseSuccessful(response, order) || string.IsNullOrWhiteSpace(response?.TransactionResponse?.TransId))
             {
                 string message = response?.TransactionResponse?.Errors?.FirstOrDefault()?.ErrorText
                             ?? response?.Messages?.Message?.FirstOrDefault()?.Text
@@ -913,41 +881,12 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 LogEvent(order, message, DebuggingInfoType.CaptureResult);
 
                 return new OrderCaptureInfo(OrderCaptureState.Failed, message);
-            }
+            }            
 
-            LogEvent(order, PreparedMessages.CaptureSuccessMessage, DebuggingInfoType.CaptureResult);
-            OrderHelper.UpdateTransactionNumber(order, response.TransactionResponse.TransId ?? "");
-            transactionId = order.TransactionNumber;
+            OrderCaptureInfo captureState = new OrderCaptureInfo(OrderCaptureState.Success, "Full capture completed");           
+            Ecommerce.Services.Orders.Save(order);
 
-            TransactionDetailsType? postOperationDetails = service.GetTransactionDetails(transactionId);
-            if (postOperationDetails is null)
-            {
-                LogError(order, "Failed to retrieve transaction details for ID: {0}", transactionId);
-                return new OrderCaptureInfo(OrderCaptureState.Failed, "Failed to retrieve transaction details");
-            }
-
-            double postOperationCapturedAmount = postOperationDetails.SettleAmount;
-
-            // Check if captured amount actually changed.
-            // This is important for idempotency - if the same capture request is sent multiple times, we don't want to treat it as a new capture if the captured amount hasn't changed.
-            bool actuallyChanged = postOperationCapturedAmount > preOperationCapturedAmount;
-
-            OrderCaptureInfo captureState = DetermineCaptureState(postOperationDetails);
-
-            if (actuallyChanged && (captureState.State is OrderCaptureState.Success ||
-                captureState.State is OrderCaptureState.Split))
-            {
-                UpdateReturnOperationStatesAfterCapture(order, postOperationCapturedAmount);
-                Ecommerce.Services.Orders.Save(order);
-
-                LogEvent(order, "Capture operation completed. Amount changed from {0} to {1}",
-                    preOperationCapturedAmount, postOperationCapturedAmount);
-            }
-            else if (!actuallyChanged)
-            {
-                LogEvent(order, "Capture operation idempotent - no changes made. Server amount remains: {0}", postOperationCapturedAmount);
-                return new OrderCaptureInfo(OrderCaptureState.Cancel, "Capture request is idempotent - no changes made");
-            }
+            LogEvent(order, "Capture operation completed. Amount captured {0}", operationCaptureAmount);          
 
             return captureState;
         }
@@ -957,23 +896,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             return new OrderCaptureInfo(OrderCaptureState.Failed, "Remote capture failed");
         }
     }
-
-    /// <summary>
-    /// Determines capture state based on transaction details
-    /// </summary>
-    private OrderCaptureInfo DetermineCaptureState(TransactionDetailsType transactionDetails)
-    {
-        double totalCapturedAmount = transactionDetails.SettleAmount;
-        double totalAuthorizedAmount = transactionDetails.AuthAmount;
-
-        if (totalCapturedAmount >= totalAuthorizedAmount)
-            return new OrderCaptureInfo(OrderCaptureState.Success, "Full capture completed");
-        else if (totalCapturedAmount > 0)
-            return new OrderCaptureInfo(OrderCaptureState.Split, "Partial capture completed");
-
-        return new OrderCaptureInfo(OrderCaptureState.Failed, "No amount captured");
-    }
-
+  
     /// <summary>
     /// Performs a full refund for the order
     /// </summary>
@@ -1192,10 +1115,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 return string.Empty;
             }
 
-            return string.Empty;
-        }
-        catch (ThreadAbortException)
-        {
             return string.Empty;
         }
         catch (Exception ex)

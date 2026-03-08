@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
@@ -10,6 +11,9 @@ internal sealed class ErrorResponse
 {
     [DataMember(Name = "refId", EmitDefaultValue = false)]
     public string? RefId { get; set; }
+
+    [DataMember(Name = "errors", EmitDefaultValue = false)]
+    public IEnumerable<Error>? Errors { get; set; }
 
     [DataMember(Name = "messages", EmitDefaultValue = false)]
     public Messages? Messages { get; set; }

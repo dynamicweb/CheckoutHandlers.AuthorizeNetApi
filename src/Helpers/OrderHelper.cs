@@ -1,4 +1,5 @@
 using Dynamicweb.Ecommerce.Orders;
+using System;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
 
@@ -20,8 +21,13 @@ internal static class OrderHelper
 
     public static void UpdateTransactionNumber(Order order, string? transactionId)
     {
-        if (!string.IsNullOrEmpty(transactionId) && !transactionId.Equals(order.TransactionNumber, System.StringComparison.OrdinalIgnoreCase))
-            order.TransactionNumber = transactionId;
+        if (string.IsNullOrWhiteSpace(transactionId) || transactionId.Equals("0", StringComparison.OrdinalIgnoreCase)
+            || transactionId.Equals(order.TransactionNumber, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        order.TransactionNumber = transactionId;
     }
 
     public static double GetOrderAmount(Order order) => Ecommerce.Services.Currencies.Round(order.Currency, order.Price.Price + order.ExternalPaymentFee);

@@ -372,12 +372,15 @@ internal sealed class AuthorizeNetService : IDisposable
         if (Enum.TryParse(response?.Messages?.ResultCode, true, out MessageTypeEnum resultCode) && resultCode is MessageTypeEnum.Ok)
             transactionDetails = response.Transaction;
 
-        if (transactionDetails is not null)
+        if (transactionDetails is not null && !string.IsNullOrWhiteSpace(transactionDetails.TransId))
             return transactionDetails;
 
         var messages = new StringBuilder();
         foreach (Message message in response?.Messages?.Message ?? [])
             messages.AppendFormat("Code: {0}, Text: {1}; ", message.Code, message.Text);
+
+        if (string.IsNullOrWhiteSpace(transactionDetails?.TransId))
+            messages.Append("Transaction ID is missing in the response.");
 
         throw new AuthorizeNetApiException($"Failed to retrieve transaction details. ResultCode: {resultCode.ToString()}. Details: {messages}");
     }

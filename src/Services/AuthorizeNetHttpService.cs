@@ -133,9 +133,16 @@ internal sealed class AuthorizeNetHttpService : IDisposable
                 // Check if response is an error before deserializing to T
                 ErrorResponse? errorResponse = TryParseError(responseText);
                 if (errorResponse is not null)
-                {
+                {                    
                     string errorMessages = string.Join("; ",
                         errorResponse.Messages?.Message?.Select(m => $"[{m.Code}] {m.Text}") ?? ["Unknown error"]);
+
+                    if (errorResponse.Errors is not null)
+                    {
+                        string detailedErrors = string.Join("; ",
+                            errorResponse.Errors.Select(e => $"[{e.ErrorCode}] {e.ErrorText}"));
+                        errorMessages += $" Details: {detailedErrors}";
+                    }
 
                     throw new AuthorizeNetApiException($"Authorize.Net API error: {errorMessages}", errorResponse);
                 }

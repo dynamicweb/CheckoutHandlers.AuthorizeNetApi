@@ -17,10 +17,10 @@ internal sealed class TransactionDetailsType
     public string? SplitTenderId { get; set; }
 
     [DataMember(Name = "submitTimeUTC", EmitDefaultValue = false)]
-    public DateTime SubmitTimeUTC { get; set; }
+    public string? SubmitTimeUTC { get; set; }
 
     [DataMember(Name = "submitTimeLocal", EmitDefaultValue = false)]
-    public DateTime SubmitTimeLocal { get; set; }
+    public string? SubmitTimeLocal { get; set; }
 
     [DataMember(Name = "transactionType", EmitDefaultValue = false)]
     public TransactionTypeEnum? TransactionType { get; set; }
