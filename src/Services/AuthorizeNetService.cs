@@ -10,13 +10,12 @@ using System.Linq;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Services;
 
-internal sealed class AuthorizeNetService : IDisposable
+internal sealed class AuthorizeNetService
 {
     private readonly AuthorizeNetHttpService _httpService;
     private readonly string _apiLoginId;
     private readonly string _transactionKey;
     private readonly AuthorizeNetLogger _logger;
-    private bool _disposed = false;
 
     /// <summary>
     /// Current order for context in logging (optional, used only for logging purposes)  
@@ -50,16 +49,6 @@ internal sealed class AuthorizeNetService : IDisposable
 
         _logger.LogInfo("AuthorizeNet service initialized");
     }
-
-    public void Dispose()
-    {
-        if (_disposed) return;
-
-        _httpService?.Dispose();
-        _logger.LogInfo("Service disposed");
-        _disposed = true;
-    }
-
     /// <summary>
     /// Creates a hosted payment page request to obtain a form token for use in Accept Hosted.
     /// This method generates a secure payment form that customers can use to enter their payment information.

@@ -103,7 +103,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     {
         try
         {
-            using AuthorizeNetService service = GetAuthorizeNetService(order);
+            AuthorizeNetService service = GetAuthorizeNetService(order);
 
             LogEvent(order, "Checkout started");
 
@@ -228,7 +228,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
     private OutputResult CreatePaymentTransaction(Order order, CustomerProfilePaymentType? profileToCharge, AuthorizeNetService? service)
     {
-        using AuthorizeNetService? ownedService = service is null
+        AuthorizeNetService? ownedService = service is null
             ? GetAuthorizeNetService(order)
             : null;
 
@@ -311,7 +311,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     {
         try
         {
-            using AuthorizeNetService service = GetAuthorizeNetService(order);
+            AuthorizeNetService service = GetAuthorizeNetService(order);
             TransactionDetailsType transactionDetails = service.GetTransactionDetails(transactionId);
 
             LogEvent(order, "Synchronizing order with API data for capture transaction: {0}", transactionId);
@@ -350,7 +350,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     {
         try
         {
-            using AuthorizeNetService service = GetAuthorizeNetService(order);
+            AuthorizeNetService service = GetAuthorizeNetService(order);
             TransactionDetailsType transactionDetails = service.GetTransactionDetails(transactionId);
 
             LogEvent(order, "Synchronizing order with API data for refund transaction: {0}", transactionId);
@@ -383,7 +383,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     {
         try
         {
-            using AuthorizeNetService service = GetAuthorizeNetService(order);
+            AuthorizeNetService service = GetAuthorizeNetService(order);
             TransactionDetailsType transactionDetails = service.GetTransactionDetails(transactionId);
 
             LogEvent(order, "Synchronizing order with API data for void transaction: {0}", transactionId);
@@ -656,7 +656,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             // This is auth_only - just update basic info
             try
             {
-                using AuthorizeNetService service = GetAuthorizeNetService(order);
+                AuthorizeNetService service = GetAuthorizeNetService(order);
                 TransactionDetailsType transactionDetails = service.GetTransactionDetails(payload.Id);
 
                 UpdateBasicTransactionInfo(order, transactionDetails);
@@ -764,7 +764,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
         try
         {
-            using AuthorizeNetService service = GetAuthorizeNetService(order);
+            AuthorizeNetService service = GetAuthorizeNetService(order);
             LogEvent(order, "Cancel order attempt for Order {0}, Amount {1}", order.Id, order.TransactionAmount);
 
             if (string.IsNullOrEmpty(order.Id))
@@ -880,7 +880,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 return new OrderCaptureInfo(OrderCaptureState.Failed, "Amount to capture should be less or equal to order total");
             }
 
-            using AuthorizeNetService service = GetAuthorizeNetService(order);
+            AuthorizeNetService service = GetAuthorizeNetService(order);
             double operationCaptureAmount = amount / 100d;
             CreateTransactionResponse? response = service.Capture(order, operationCaptureAmount);
 
@@ -1018,7 +1018,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
         try
         {
-            using AuthorizeNetService service = GetAuthorizeNetService(order);
+            AuthorizeNetService service = GetAuthorizeNetService(order);
             CreateTransactionResponse? response = service.Refund(order, operationAmount);
 
             if (!IsResponseSuccessful(response, order))
@@ -1093,7 +1093,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
         try
         {
-            using AuthorizeNetService service = GetAuthorizeNetService();
+            AuthorizeNetService service = GetAuthorizeNetService();
 
             CustomerProfileMaskedType? profile = GetCustomerProfile(service, userId, false);
             if (string.IsNullOrEmpty(profile?.CustomerProfileId))
@@ -1168,7 +1168,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         if (string.IsNullOrEmpty(savedCard.Token))
             throw new ArgumentException($"Invalid token for saved card ID: {order.SavedCardId}");
 
-        using AuthorizeNetService service = GetAuthorizeNetService(order);
+        AuthorizeNetService service = GetAuthorizeNetService(order);
         CustomerProfileMaskedType? profile = GetCustomerProfile(service, order.CustomerAccessUserId, false);
         if (string.IsNullOrEmpty(profile?.CustomerProfileId))
             throw new InvalidOperationException($"Customer profile not found for user: {order.CustomerAccessUserId}");
@@ -1239,7 +1239,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         if (!AllowSaveCards || order.CustomerAccessUserId <= 0)
             return;
 
-        using AuthorizeNetService service = GetAuthorizeNetService(order);
+        AuthorizeNetService service = GetAuthorizeNetService(order);
         CustomerProfileMaskedType? profile = GetCustomerProfile(service, order.CustomerAccessUserId, true);
         if (profile is null)
             return;
@@ -1382,7 +1382,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             try
             {
                 string webhookUrl = BuildWebhookUrl(order);
-                using AuthorizeNetService service = GetAuthorizeNetService();
+                AuthorizeNetService service = GetAuthorizeNetService();
 
                 // Check if webhooks already exist for this URL
                 WebhookListResponse existingWebhooks = service.GetWebhooks();
@@ -1417,7 +1417,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         try
         {
             string webhookUrl = BuildWebhookUrl(order);
-            using var service = GetAuthorizeNetService(order);
+            var service = GetAuthorizeNetService(order);
 
             var response = service.EnsureWebhooksRegistered(webhookUrl, ForceWebhookRegistration);
 

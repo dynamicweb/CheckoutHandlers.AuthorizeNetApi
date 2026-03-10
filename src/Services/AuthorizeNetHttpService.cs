@@ -14,37 +14,24 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Services;
 /// <summary>
 /// Service to send request/response to Authorize.Net API endpoints.
 /// </summary>
-internal sealed class AuthorizeNetHttpService : IDisposable
+internal sealed class AuthorizeNetHttpService
 {
+    private static readonly HttpClient ProductionHttpClient = CreateHttpClient(AuthorizeNetEndpoints.ProductionApiUrl);
+    private static readonly HttpClient SandboxHttpClient = CreateHttpClient(AuthorizeNetEndpoints.SandboxApiUrl);
+
     private readonly HttpClient _httpClient;
     private readonly string _url;
     private readonly bool _debugEnabled;
     private readonly AuthorizeNetLogger? _logger;
-    private bool _disposed = false;
 
     public AuthorizeNetHttpService(bool isTestMode, bool debugEnabled, AuthorizeNetLogger? logger)
     {
         _url = AuthorizeNetEndpoints.GetApiEndpoint(isTestMode);
         _debugEnabled = debugEnabled;
         _logger = logger;
-
-        _httpClient = new HttpClient(new HttpClientHandler())
-        {
-            BaseAddress = new Uri(_url),
-            Timeout = TimeSpan.FromSeconds(90)
-        };
-    }
-
-    /// <summary>
-    /// Disposes the HTTP client and releases managed resources
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-
-        _httpClient?.Dispose();
-        _disposed = true;
+        _httpClient = isTestMode
+            ? SandboxHttpClient
+            : ProductionHttpClient;
     }
 
     public T? Post<T>(string jsonObject)
@@ -190,5 +177,17 @@ internal sealed class AuthorizeNetHttpService : IDisposable
         }
 
         return null;
+    }
+
+    private static HttpClient CreateHttpClient(string baseAddress)
+    {
+        return new HttpClient(new HttpClientHandler
+        {
+            UseCookies = false
+        })
+        {
+            BaseAddress = new Uri(baseAddress),
+            Timeout = TimeSpan.FromSeconds(90)
+        };
     }
 }
