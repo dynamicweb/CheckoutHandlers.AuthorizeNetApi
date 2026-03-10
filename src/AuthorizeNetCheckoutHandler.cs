@@ -16,7 +16,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
-using System.Threading;
 using static Dynamicweb.Ecommerce.Orders.OrderCaptureInfo;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi;
@@ -258,7 +257,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         if (response?.TransactionResponse is not null)
         {
             OrderHelper.UpdateTransactionNumber(order, response.TransactionResponse.TransId);
-            order.TransactionStatus = AuthorizeNetErrorMessageBuilder.GetResponseTextByCode(response.TransactionResponse.ResponseCode);
+            order.TransactionStatus = TransactionDetailsHelper.GetResponseTextByCode(response.TransactionResponse.ResponseCode);
             order.TransactionCardType = response.TransactionResponse.AccountType;
             order.TransactionCardNumber = response.TransactionResponse.AccountNumber;
 
@@ -328,6 +327,8 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 HandleCaptureDelta(order, apiCaptureAmount, transactionDetails.TransId);
             }
 
+            order.TransactionStatus = TransactionDetailsHelper.GetTransactionStatus(transactionDetails.TransactionStatus);
+
             Save(order);
             LogEvent(order, "Capture synchronization completed");
         }
@@ -361,6 +362,8 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 HandleRefundDelta(order, refundAmount, transactionDetails.TransId);
             }
 
+            order.TransactionStatus = TransactionDetailsHelper.GetTransactionStatus(transactionDetails.TransactionStatus);
+
             Save(order);
             LogEvent(order, "Refund synchronization completed");
         }
@@ -387,6 +390,8 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             UpdateBasicTransactionInfo(order, transactionDetails);
             HandleVoidDelta(order, transactionDetails.TransId);
 
+            order.TransactionStatus = TransactionDetailsHelper.GetTransactionStatus(transactionDetails.TransactionStatus);
+
             Save(order);
             LogEvent(order, "Void synchronization completed");
         }
@@ -407,7 +412,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             OrderHelper.UpdateTransactionNumber(order, transactionDetails.TransId);
 
         if (transactionDetails.ResponseCode > 0)
-            order.TransactionStatus = AuthorizeNetErrorMessageBuilder.GetResponseTextByCode(transactionDetails.ResponseCode);
+            order.TransactionStatus = TransactionDetailsHelper.GetTransactionStatus(transactionDetails.TransactionStatus);
     }
 
     /// <summary>
@@ -636,7 +641,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     {
         if (payload.ResponseCode != 1)
         {
-            order.TransactionStatus = $"Authorisation failed: {AuthorizeNetErrorMessageBuilder.GetResponseTextByCode(payload.ResponseCode)}";
+            order.TransactionStatus = $"Authorisation failed: {TransactionDetailsHelper.GetResponseTextByCode(payload.ResponseCode)}";
             Save(order);
             return;
         }
@@ -653,7 +658,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             {
                 using AuthorizeNetService service = GetAuthorizeNetService(order);
                 TransactionDetailsType transactionDetails = service.GetTransactionDetails(payload.Id);
-                              
+
                 UpdateBasicTransactionInfo(order, transactionDetails);
                 UpdateCardInformation(order, transactionDetails);
 
@@ -665,7 +670,9 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                     LogEvent(order, "Updated authorization amount: {0:C}", authAmount);
                 }
 
-                Save(order);                
+                order.TransactionStatus = TransactionDetailsHelper.GetTransactionStatus(transactionDetails.TransactionStatus);
+
+                Save(order);
             }
             catch (Exception ex)
             {
@@ -687,7 +694,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             order.CaptureInfo = new OrderCaptureInfo
             (
                 OrderCaptureState.Failed,
-                $"Capture failed: {AuthorizeNetErrorMessageBuilder.GetResponseTextByCode(payload.ResponseCode)}"
+                $"Capture failed: {TransactionDetailsHelper.GetResponseTextByCode(payload.ResponseCode)}"
             );
             Save(order);
 
@@ -711,7 +718,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             OrderReturnInfo.SaveReturnOperation
             (
                 OrderReturnOperationState.Failed,
-                $"Order refund failed: {AuthorizeNetErrorMessageBuilder.GetResponseTextByCode(payload.ResponseCode)}",
+                $"Order refund failed: {TransactionDetailsHelper.GetResponseTextByCode(payload.ResponseCode)}",
                 0, order
             );
 
@@ -735,7 +742,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             order.CaptureInfo = new OrderCaptureInfo
             (
                 OrderCaptureState.Cancel,
-                $"Cancel order failed: {AuthorizeNetErrorMessageBuilder.GetResponseTextByCode(payload.ResponseCode)}"
+                $"Cancel order failed: {TransactionDetailsHelper.GetResponseTextByCode(payload.ResponseCode)}"
             );
             Save(order);
 
@@ -805,7 +812,11 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         CreateTransactionResponse? response = service.Void(order);
 
         if (IsResponseSuccessful(response, order))
+        {
+            order.TransactionStatus = TransactionDetailsHelper.GetTransactionStatus(TransactionStatusEnum.Voided);
+
             return true;
+        }
 
         string errorMessage = response?.TransactionResponse?.Errors?.FirstOrDefault()?.ErrorText
                               ?? response?.Messages?.Message?.FirstOrDefault()?.Text
@@ -869,7 +880,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 return new OrderCaptureInfo(OrderCaptureState.Failed, "Amount to capture should be less or equal to order total");
             }
 
-            using AuthorizeNetService service = GetAuthorizeNetService(order);           
+            using AuthorizeNetService service = GetAuthorizeNetService(order);
             double operationCaptureAmount = amount / 100d;
             CreateTransactionResponse? response = service.Capture(order, operationCaptureAmount);
 
@@ -881,12 +892,14 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
                 LogEvent(order, message, DebuggingInfoType.CaptureResult);
 
                 return new OrderCaptureInfo(OrderCaptureState.Failed, message);
-            }            
+            }
 
-            OrderCaptureInfo captureState = new OrderCaptureInfo(OrderCaptureState.Success, "Full capture completed");           
-            Ecommerce.Services.Orders.Save(order);
+            OrderCaptureInfo captureState = new OrderCaptureInfo(OrderCaptureState.Success, "Full capture completed");
 
-            LogEvent(order, "Capture operation completed. Amount captured {0}", operationCaptureAmount);          
+            order.TransactionStatus = TransactionDetailsHelper.GetTransactionStatus(TransactionStatusEnum.CapturedPendingSettlement);
+            Save(order);
+
+            LogEvent(order, "Capture operation completed. Amount captured {0}", operationCaptureAmount);
 
             return captureState;
         }
@@ -896,7 +909,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
             return new OrderCaptureInfo(OrderCaptureState.Failed, "Remote capture failed");
         }
     }
-  
+
     /// <summary>
     /// Performs a full refund for the order
     /// </summary>
@@ -1034,6 +1047,8 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
 
             OrderReturnInfo.SaveReturnOperation(operationState, refundMessage, operationAmount, order);
 
+            order.TransactionStatus = TransactionDetailsHelper.GetTransactionStatus(TransactionStatusEnum.RefundPendingSettlement);
+            Save(order);
         }
         catch (Exception ex)
         {
@@ -1440,8 +1455,6 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
     /// </summary>
     private string BuildWebhookUrl(Order order)
     {
-        /*
-
         // Get base URL (this may include Default.aspx and query parameters)
         string baseUrl = GetBaseUrl(order);
 
@@ -1454,12 +1467,7 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         string handlerName = AddInManager.GetAddInName(GetType()); // Must match AddInName exactly
         string webhookUrl = $"{baseUrlClean}/dwapi/ecommerce/carts/callback/{Uri.EscapeDataString(handlerName)}";
 
-        return webhookUrl; 
-        */
-
-        //Returns the test webhook URL for testing purposes. Please replace it with the actual URL when using the webhook functionality.
-
-        return "https://webhook.site/4a746d3d-4deb-4412-9736-f1dafb2f1f87";
+        return webhookUrl;
     }
 
     /// <summary>

@@ -7,11 +7,11 @@
 	</PropertyGroup>
 	<PropertyGroup>
 		<PackageProjectUrl>https://doc.dynamicweb.com/</PackageProjectUrl>
-		<PackageTags>Dynamicweb dw10 addin ecommerce checkout</PackageTags>
+		<PackageTags>Dynamicweb dw10 addin commerce payment</PackageTags>
 		<Product>Dynamicweb CMS</Product>
 		<Company>Dynamicweb Software A/S</Company>
 		<Authors>Dynamicweb Software A/S</Authors>
-		<Copyright>Copyright © 2020 Dynamicweb Software A/S</Copyright>
+		<Copyright>Copyright © 2026 Dynamicweb Software A/S</Copyright>
 	</PropertyGroup>
 	<PropertyGroup>
 		<TargetFramework>net8.0</TargetFramework>
@@ -23,11 +23,18 @@
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<Nullable>enable</Nullable>
 		<WarningsAsErrors>nullable</WarningsAsErrors>
+		<PackageIcon>AuthorizeNet-logo.png</PackageIcon>
 	</PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="Dynamicweb" Version="10.23.7" />
 		<PackageReference Include="Dynamicweb.Core" Version="10.23.7" />
 		<PackageReference Include="Dynamicweb.Ecommerce" Version="10.23.7" />
 		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
+	</ItemGroup>
+	<ItemGroup>
+	  <None Update="AuthorizeNet-logo.png">
+	    <Pack>True</Pack>
+	    <PackagePath>\</PackagePath>
+	  </None>
 	</ItemGroup>
 </Project>

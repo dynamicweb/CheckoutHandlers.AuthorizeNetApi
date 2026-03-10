@@ -7,7 +7,6 @@ using Dynamicweb.Ecommerce.Orders;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Services;
 
@@ -365,24 +364,13 @@ internal sealed class AuthorizeNetService : IDisposable
             GetTransactionDetailsRequest = request
         };
 
-        var response = _httpService.Post<GetTransactionDetailsResponse>(Converter.Serialize(wrapper));
-
-        TransactionDetailsType? transactionDetails = null;
-
-        if (Enum.TryParse(response?.Messages?.ResultCode, true, out MessageTypeEnum resultCode) && resultCode is MessageTypeEnum.Ok)
-            transactionDetails = response.Transaction;
+        GetTransactionDetailsResponse? response = _httpService.Post<GetTransactionDetailsResponse>(Converter.Serialize(wrapper));
+        TransactionDetailsType? transactionDetails = response?.Transaction;
 
         if (transactionDetails is not null && !string.IsNullOrWhiteSpace(transactionDetails.TransId))
             return transactionDetails;
 
-        var messages = new StringBuilder();
-        foreach (Message message in response?.Messages?.Message ?? [])
-            messages.AppendFormat("Code: {0}, Text: {1}; ", message.Code, message.Text);
-
-        if (string.IsNullOrWhiteSpace(transactionDetails?.TransId))
-            messages.Append("Transaction ID is missing in the response.");
-
-        throw new AuthorizeNetApiException($"Failed to retrieve transaction details. ResultCode: {resultCode.ToString()}. Details: {messages}");
+        throw new AuthorizeNetApiException($"Failed to retrieve transaction details. Transaction ID is missing in the response.");
     }
 
     /// <summary>

@@ -105,8 +105,8 @@ internal sealed class AuthorizeNetHttpService : IDisposable
             // Add custom headers
             if (headers is not null)
             {
-                foreach ((string name, string value) in headers)                
-                    requestMessage.Headers.Add(name, value);                
+                foreach ((string name, string value) in headers)
+                    requestMessage.Headers.Add(name, value);
             }
 
             logger.LogRequest(requestMessage, jsonObject ?? "");
@@ -132,11 +132,11 @@ internal sealed class AuthorizeNetHttpService : IDisposable
 
                 // Check if response is an error before deserializing to T
                 if (TryParseError(responseText) is ErrorResponse errorResponse)
-                {                    
+                {
                     string errorMessages = string.Join("; ",
                         errorResponse.Messages?.Message?.Select(m => $"[{m.Code}] {m.Text}") ?? ["Unknown error"]);
 
-                    if (Converter.TryDeserialize(responseText, out CreateTransactionResponse? responseWrapper) 
+                    if (Converter.TryDeserialize(responseText, out CreateTransactionResponse? responseWrapper)
                         && responseWrapper.TransactionResponse is TransactionResponse transactionResponse)
                     {
                         if (transactionResponse.Errors is not null)
@@ -181,7 +181,7 @@ internal sealed class AuthorizeNetHttpService : IDisposable
             var errorResponse = Converter.Deserialize<ErrorResponse>(responseText);
 
             // Check if this looks like an error response
-            if (errorResponse?.Messages?.ResultCode?.Equals("Error", StringComparison.OrdinalIgnoreCase) is true)
+            if (Enum.TryParse(errorResponse?.Messages?.ResultCode, true, out MessageTypeEnum resultCode) && resultCode is MessageTypeEnum.Error)
                 return errorResponse;
         }
         catch
