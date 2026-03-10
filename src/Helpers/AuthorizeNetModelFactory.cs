@@ -42,7 +42,7 @@ internal static class AuthorizeNetModelFactory
 
     public static CustomerAddressType CreateBillAddress(Order order)
     {
-        string firstName = GetCustomerLastNameOrFallback([
+        string firstName = GetCustomerFirstNameOrFallback([
             order.CustomerFirstName,
             order.CustomerName,
         ]);
