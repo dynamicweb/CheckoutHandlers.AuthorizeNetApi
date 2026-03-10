@@ -665,6 +665,12 @@ internal sealed class AuthorizeNetService
     /// </remarks>
     public void DeleteWebhook(string webhookId)
     {
+        if (string.IsNullOrWhiteSpace(webhookId))
+        {
+            _logger.LogError("[WEBHOOK] Skipping webhook deletion because webhook ID is missing.");
+            return;
+        }
+
         try
         {
             _logger.LogInfo("[WEBHOOK] Deleting webhook: {0}", webhookId);
@@ -733,8 +739,15 @@ internal sealed class AuthorizeNetService
             // Delete existing webhooks for this URL
             foreach (WebhookResponse webhook in ourWebhooks)
             {
-                _logger.LogInfo("[WEBHOOK] Cleaning up existing webhook: {0}", webhook.WebhookId ?? "");
-                DeleteWebhook(webhook.WebhookId ?? "");
+                if (string.IsNullOrWhiteSpace(webhook.WebhookId))
+                {
+                    _logger.LogError("[WEBHOOK] Skipping webhook cleanup for URL {0} because webhook ID is missing.",
+                        webhook.Url ?? webhookUrl);
+                    continue;
+                }
+
+                _logger.LogInfo("[WEBHOOK] Cleaning up existing webhook: {0}", webhook.WebhookId);
+                DeleteWebhook(webhook.WebhookId);
             }
 
             // Create new webhook with all required event types
