@@ -1052,7 +1052,10 @@ public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullR
         }
         catch (Exception ex)
         {
-            string errorMessage = $"{PreparedMessages.UnexpectedErrorMessage}: {ex.Message}";
+            string errorMessage = $"{PreparedMessages.UnexpectedErrorMessage}: {ex.Message}" +
+                " Note: This transaction type is used to refund a customer for a transaction that was successfully settled through the payment gateway." +
+                " Please verify that transaction was indeed settled before attempting a refund.";
+
             LogError(order, ex, errorMessage);
             OrderReturnInfo.SaveReturnOperation(OrderReturnOperationState.Failed, errorMessage, 0, order);
         }
