@@ -1,10 +1,10 @@
-﻿using System.Runtime.Serialization;
-using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
+﻿using Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Helpers;
+using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [DataContract]
-public sealed class NotificationPayload
+internal sealed class NotificationPayload
 {
     [DataMember(Name = "id")]
     public string Id { get; set; } = "";
@@ -21,8 +21,8 @@ public sealed class NotificationPayload
     private double _amount;
 
     [DataMember(Name = "authAmount", EmitDefaultValue = false)]
-    public double Amount 
-    { 
+    public double Amount
+    {
         get => _amount;
         set => _amount = AmountHelper.AdjustAmount(value);
     }

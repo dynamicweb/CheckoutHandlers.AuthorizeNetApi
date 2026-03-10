@@ -3,7 +3,7 @@
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [DataContract]
-public partial class NotificationItem
+internal sealed class NotificationItem
 {
     [DataMember(Name = "notificationId", EmitDefaultValue = false)]
     public string? Id { get; set; }

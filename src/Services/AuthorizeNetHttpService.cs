@@ -81,7 +81,7 @@ internal sealed class AuthorizeNetHttpService
 
         try
         {
-            var requestMessage = new HttpRequestMessage(method, endpoint);
+            using var requestMessage = new HttpRequestMessage(method, endpoint);
 
             if (jsonObject is not null)
             {
