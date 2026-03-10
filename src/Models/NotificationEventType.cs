@@ -6,7 +6,7 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
 
 [JsonConverter(typeof(DataContractEnumConverter<NotificationEventType>))]
 [DataContract]
-public enum NotificationEventType
+internal enum NotificationEventType
 {
     /// <summary>
     /// Notifies you that an authorization and capture transaction was created.
@@ -42,5 +42,5 @@ public enum NotificationEventType
     /// Notifies you that an unsettled transaction was voided.
     /// </summary>
     [EnumMember(Value = "VoidCreated")]
-    VoidCreated,
+    VoidCreated
 }

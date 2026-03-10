@@ -21,9 +21,4 @@ internal static class SecuritySettings
     /// Placeholder for saved card name
     /// </summary>
     internal const string SavedCardNamePlaceholder = "NeedToSaveCardWithName:";
-
-    /// <summary>
-    /// Minimum length for secure passwords/keys
-    /// </summary>
-    internal const int MinSecureKeyLength = 8;
 }

@@ -85,31 +85,20 @@ internal static class SecurityHelper
     public static SecurityValidationResult ValidateSecurityConfiguration(
         string apiLoginId,
         string transactionKey,
-        string? signatureKey,
+        string signatureKey,
         bool isTestMode)
     {
         var issues = new List<string>();
         var warnings = new List<string>();
 
-        // Check API Login ID
         if (string.IsNullOrWhiteSpace(apiLoginId))
-        {
             issues.Add("API Login ID is required");
-        }
-        else if (apiLoginId.Length < SecuritySettings.MinSecureKeyLength)
-        {
-            warnings.Add($"API Login ID is shorter than recommended {SecuritySettings.MinSecureKeyLength} characters");
-        }
 
-        // Check Transaction Key
         if (string.IsNullOrWhiteSpace(transactionKey))
-        {
             issues.Add("Transaction Key is required");
-        }
-        else if (transactionKey.Length < SecuritySettings.MinSecureKeyLength)
-        {
-            warnings.Add($"Transaction Key is shorter than recommended {SecuritySettings.MinSecureKeyLength} characters");
-        }
+
+        if (string.IsNullOrWhiteSpace(signatureKey))
+            issues.Add("Signature Key is required");
 
         return new SecurityValidationResult
         {
