@@ -1,4 +1,3 @@
-﻿using System.Collections.Generic;
 using System.Runtime.Serialization;
 
 namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi.Models;
@@ -10,5 +9,5 @@ internal sealed class MessagesType
     public string? ResultCode { get; set; }
 
     [DataMember(Name = "message", EmitDefaultValue = false)]
-    public IEnumerable<Message>? Message { get; set; }
+    public Message[]? Message { get; set; }
 }

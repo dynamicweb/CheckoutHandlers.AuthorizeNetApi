@@ -3,7 +3,7 @@
 internal static class PreparedMessages
 {
     internal const string CaptureSuccessMessage = "Capture successful";
-    internal const string RefundSuccessMessage = "Authorize.Net has full refunded payment.";
+    internal const string RefundSuccessMessage = "Authorize.Net has fully refunded payment.";
 
     internal const string OrderNotSetMessage = "Order not set";
     internal const string OrderIdNotSetMessage = "Order id not set";

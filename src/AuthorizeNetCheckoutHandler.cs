@@ -22,6 +22,8 @@ namespace Dynamicweb.Ecommerce.CheckoutHandlers.AuthorizeNetApi;
 
 /// <summary>
 /// AuthorizeNet API Checkout Handler
+/// The documentation link: https://developer.authorize.net/api/reference/index.html
+/// The webhooks documentation link: https://developer.authorize.net/api/reference/features/webhooks.html
 /// </summary>
 [AddInName("Authorize.Net API"), AddInDescription("AuthorizeNet API Checkout Handler"), AddInUseParameterGrouping(true)]
 public class AuthorizeNetCheckoutHandler : CheckoutHandler, ICancelOrder, IFullReturn, IPartialReturn, IRemoteCapture, ISavedCard, IParameterOptions, ICheckoutHandlerCallback
