@@ -1,34 +1,40 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<VersionPrefix>10.0.0</VersionPrefix>
-		<VersionSuffix>Alpha0001</VersionSuffix>
+		<VersionPrefix>10.23.0</VersionPrefix>
 		<AssemblyVersion>1.0.0.0</AssemblyVersion>
 		<Title>Authorize.Net API</Title>
 		<Description>Authorize.Net API Checkout Handler</Description>
 	</PropertyGroup>
 	<PropertyGroup>
 		<PackageProjectUrl>https://doc.dynamicweb.com/</PackageProjectUrl>
-		<PackageTags>Dynamicweb dw10 addin ecommerce checkout</PackageTags>
+		<PackageTags>Dynamicweb dw10 addin commerce payment</PackageTags>
 		<Product>Dynamicweb CMS</Product>
 		<Company>Dynamicweb Software A/S</Company>
 		<Authors>Dynamicweb Software A/S</Authors>
-		<Copyright>Copyright © 2020 Dynamicweb Software A/S</Copyright>
+		<Copyright>Copyright © 2026 Dynamicweb Software A/S</Copyright>
 	</PropertyGroup>
 	<PropertyGroup>
 		<TargetFramework>net8.0</TargetFramework>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<IncludeSymbols>true</IncludeSymbols>
 		<EmbedUntrackedSources>true</EmbedUntrackedSources>
-		<ContinuousIntegrationBuild >true</ContinuousIntegrationBuild>
+		<ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
 		<PublishRepositoryUrl>true</PublishRepositoryUrl>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<Nullable>enable</Nullable>
 		<WarningsAsErrors>nullable</WarningsAsErrors>
+		<PackageIcon>AuthorizeNet-logo.png</PackageIcon>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="Dynamicweb" Version="10.14.0" />
-		<PackageReference Include="Dynamicweb.Core" Version="10.14.0" />
-		<PackageReference Include="Dynamicweb.Ecommerce" Version="10.14.0" />
-		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All"/>
+		<PackageReference Include="Dynamicweb" Version="10.23.7" />
+		<PackageReference Include="Dynamicweb.Core" Version="10.23.7" />
+		<PackageReference Include="Dynamicweb.Ecommerce" Version="10.23.7" />
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
+	</ItemGroup>
+	<ItemGroup>
+	  <None Update="AuthorizeNet-logo.png">
+	    <Pack>True</Pack>
+	    <PackagePath>\</PackagePath>
+	  </None>
 	</ItemGroup>
 </Project>
